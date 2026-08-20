@@ -1,0 +1,26 @@
+[Unit]
+Description=Move Space — Telegram tasdiq boti (doimiy)
+Documentation=https://github.com/xNITE-oss/move_test
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=movespace
+Group=movespace
+WorkingDirectory=/opt/movespace/app
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Tashkent
+ExecStart=/opt/movespace/venv/bin/python -m scheduler.approval_bot
+Restart=always
+RestartSec=5
+
+# Xavfsizlik: bot faqat o'z papkasiga yoza oladi
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/movespace/app/data
+
+[Install]
+WantedBy=multi-user.target

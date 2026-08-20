@@ -1,0 +1,25 @@
+[Unit]
+Description=Move Space — jadval bo'yicha post tayyorlash
+Documentation=https://github.com/xNITE-oss/move_test
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=movespace
+Group=movespace
+WorkingDirectory=/opt/movespace/app
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Tashkent
+ExecStart=/opt/movespace/venv/bin/python cli.py schedule
+Restart=always
+RestartSec=10
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/movespace/app/data
+
+[Install]
+WantedBy=multi-user.target
