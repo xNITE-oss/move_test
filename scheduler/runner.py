@@ -78,13 +78,16 @@ def main() -> int:
         log.error("Rejalashtiriladigan rubrika topilmadi")
         return 1
 
-    scheduler.start()
-    log.info("Scheduler ishga tushdi (%d ta rubrika). To'xtatish: Ctrl+C", count)
+    # AsyncIOScheduler.start() ishlayotgan hodisa-siklini talab qiladi
+    # (yangi apscheduler / Python 3.12+). Shuning uchun uni asyncio.run()
+    # ichida ishga tushiramiz va siklni abadiy kutamiz.
+    async def _serve() -> None:
+        scheduler.start()
+        log.info("Scheduler ishga tushdi (%d ta rubrika). To'xtatish: Ctrl+C", count)
+        await asyncio.Event().wait()  # signal kelguncha abadiy ishlaydi
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        loop.run_forever()
+        asyncio.run(_serve())
     except (KeyboardInterrupt, SystemExit):
         log.info("To'xtatilmoqda...")
         scheduler.shutdown(wait=False)
