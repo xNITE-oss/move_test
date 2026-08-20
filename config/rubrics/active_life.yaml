@@ -1,0 +1,96 @@
+# 👟 Active Life — faol hayot, recovery, equipment, amaliy maslahatlar
+# Move Space | Uzbekistan
+
+name: "👟 Active Life"
+description: >
+  Sportdan tashqaridagi, lekin faol hayotni ushlab turadigan narsalar: tiklanish va
+  uyqu, cho'zilish va harakatchanlik, ovqatlanish asoslari, jihoz tanlash (krossovka,
+  kiyim, soat), o'quv yoki ish bilan sportni birga olib borish, motivatsiya emas —
+  odat qurish. Auditoriya — talaba va yosh ishchilar, vaqti kam.
+enabled: true
+language: uz
+
+pipeline: [research, writer, image, audio, quality, publisher]
+max_retries: 2
+
+image_required: false
+audio_required: false
+
+agents:
+  research:
+    enabled: true
+    queries:
+      - "sleep and athletic recovery evidence"
+      - "how to choose running shoes fit guide"
+      - "habit formation exercise consistency research"
+      - "mobility stretching routine desk workers"
+      - "everyday nutrition basics for active people"
+    max_results: 5
+    recency_days: 730
+    max_sources_to_llm: 12
+    avoid_used_sources: true
+    avoid_last_n: 35
+    temperature: 0.45
+
+  writer:
+    enabled: true
+    post_type: >
+      tushuntirish posti — bitta odat yoki tanlov, sabab va amaliy qadam
+      (ba'zan jihoz solishtiruvi)
+    max_chars: 900
+    tone: >
+      sokin va aniq, "sizga aytishayotgan" emas, "bilib qo'ying" ohangi.
+      Motivatsion nutq emas — tizim va odat haqida gapiradi.
+    address_form: "siz-lab murojaat"
+    emoji: "kam — 2 ta"
+    structure:
+      - "hook — kundalik hayotdagi aniq holat"
+      - "nima uchun shunday — 2 gap, iloji bo'lsa tadqiqot yoki raqam"
+      - "3 ta amaliy qadam (vaqt va miqdor bilan)"
+      - "kichik eslatma"
+      - "savol"
+    cta: "o'quvchining odati yoki tanlovi haqida savol"
+    hashtags: ["#activelife", "#movespace"]
+    style_file: "config/style/samples.md"
+    temperature: 0.8
+    avoid:
+      - "generic motivatsion nutq: 'o'zingizga ishoning', 'boshlash kifoya'"
+      - "qat'iy dieta yoki kaloriya cheklovi tavsiyalari"
+      - "tibbiy tashxis yoki dori tavsiyasi"
+      - "'faqat 5 daqiqada' turidagi va'dalar"
+
+  image:
+    enabled: false
+    style: "lifestyle photography, everyday active routine, soft daylight, minimal styling"
+    aspect_ratio: "16:9"
+
+  audio:
+    enabled: false
+    strip_emoji: true
+    strip_hashtags: true
+    max_chars: 2500
+
+  quality:
+    enabled: true
+    use_llm: true
+    min_score: 7.5
+    min_chars: 260
+    max_links: 1
+    regenerate_from: "writer"
+    banned_words:
+      - "o'zingizga ishoning"
+      - "hech qachon kech emas"
+      - "hayotingizni o'zgartiring"
+      - "bugungi postimizda"
+      - "xulosa qilib aytganda"
+      - "eng zo'r usul"
+      - "mo''jiza"
+
+  publisher:
+    enabled: true
+    mode: "review"
+    send_audio: true
+
+schedule:
+  cron: "0 11 * * sun"
+  timezone: "Asia/Tashkent"

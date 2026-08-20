@@ -1,0 +1,23 @@
+# Kalitlar — hech qachon commit qilinmasin
+.env
+.env.*
+!.env.example
+
+# Ma'lumotlar: postlar arxivi commit qilinmaydi,
+# lekin holat bazasi (state.db) GitHub Actions runlari orasida saqlanishi kerak —
+# takroriy mavzu chiqmasligi va tasdiq offseti uchun. Ichida sir yo'q.
+data/*
+!data/state.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# OS
+.DS_Store

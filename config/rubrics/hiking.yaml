@@ -1,0 +1,91 @@
+# ⛰️ Hiking — hiking, trekking, marshrutlar
+# Move Space | Uzbekistan
+
+name: "⛰️ Hiking"
+description: >
+  Piyoda yurish va trekking: marshrutga tayyorgarlik, ryukzak, oyoq kiyim, ob-havo,
+  balandlik, navigatsiya, xavfsizlik. O'zbekiston sharoiti: Chimyon, Beldersoy,
+  Zomin, Chorvoq atrofi, Nurota tog'lari — mavsum va harorat farqi katta.
+enabled: true
+language: uz
+
+pipeline: [research, writer, image, audio, quality, publisher]
+max_retries: 2
+
+# Marshrut posti rasmsiz kuchsiz ko'rinadi — Image agent yoqilganda majburiy qilinadi.
+# Hozircha false, chunki IMAGE_PROVIDER=none. Gemini ulangach: true qiling.
+image_required: false
+audio_required: false
+
+agents:
+  research:
+    enabled: true
+    queries:
+      - "day hike packing list essentials beginner"
+      - "hiking safety navigation weather mountains"
+      - "trekking boots blisters foot care"
+      - "altitude hiking acclimatization basics"
+    max_results: 5
+    recency_days: 730
+    max_sources_to_llm: 12
+    avoid_used_sources: true
+    avoid_last_n: 30
+    temperature: 0.4
+
+  writer:
+    enabled: true
+    post_type: "tayyorgarlik yoki xavfsizlik posti — ro'yxat + sabab"
+    max_chars: 950
+    tone: >
+      tajribali hamroh ohangi: xotirjam, tafsilotga e'tiborli, qo'rqitmaydi lekin
+      xavfni yashirmaydi. "Men ham shunday qilgandim" degan tajriba hidi bo'lsin.
+    address_form: "siz-lab murojaat"
+    emoji: "kam — 2-3 ta"
+    structure:
+      - "hook — tog'da bo'ladigan aniq vaziyat"
+      - "nega shunday bo'ladi — 2 gap"
+      - "3-5 ta aniq tavsiya (nima olish, qancha, qanday)"
+      - "xavfsizlik eslatmasi"
+      - "savol"
+    cta: "o'quvchidan marshrut yoki tajriba so'rovchi savol"
+    hashtags: ["#hiking", "#movespace"]
+    style_file: "config/style/samples.md"
+    temperature: 0.8
+    avoid:
+      - "yolg'iz va xabar bermasdan tog'ga chiqishni normallashtirish"
+      - "aniq marshrutni ko'rmasdan 'oson' yoki 'xavfsiz' deb baholash"
+      - "qimmat jihozsiz umuman chiqib bo'lmaydi degan taassurot"
+
+  image:
+    enabled: false
+    style: "landscape hiking photography, mountain trail, wide shot, natural daylight, muted earth tones"
+    aspect_ratio: "16:9"
+
+  audio:
+    enabled: false
+    strip_emoji: true
+    strip_hashtags: true
+    max_chars: 2600
+
+  quality:
+    enabled: true
+    use_llm: true
+    min_score: 7.5
+    min_chars: 280
+    max_links: 1
+    regenerate_from: "writer"
+    banned_words:
+      - "100% xavfsiz"
+      - "hech qanday xavf yo'q"
+      - "bugungi postimizda"
+      - "xulosa qilib aytganda"
+      - "mo''jizaviy"
+
+  publisher:
+    enabled: true
+    mode: "review"
+    send_audio: true
+
+schedule:
+  cron: "0 18 * * fri"
+  timezone: "Asia/Tashkent"

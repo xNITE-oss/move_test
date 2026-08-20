@@ -1,0 +1,92 @@
+# 🏃 Running — yugurish, mashg'ulot, beginner maslahatlari
+# Move Space | Uzbekistan
+
+name: "🏃 Running"
+description: >
+  Yugurish bo'yicha amaliy maslahatlar: birinchi qadamlar, mashg'ulot rejasi, texnika,
+  nafas, tempo, tiklanish. Auditoriya — 16-30 yoshli, ko'pchiligi yaqinda boshlagan
+  yoki haftasiga 2-3 marta yuguradigan yoshlar. Toshkent va viloyat sharoiti:
+  issiq yoz, changli havo, stadion va park yo'llari.
+enabled: true
+language: uz
+
+pipeline: [research, writer, image, audio, quality, publisher]
+max_retries: 2
+
+# Media majburiyligi (bu rubrikada post rasmsiz ham chiqaveradi)
+image_required: false
+audio_required: false
+
+agents:
+  research:
+    enabled: true
+    queries:
+      - "beginner running training plan common mistakes"
+      - "running form technique cadence breathing"
+      - "running in hot weather hydration safety"
+      - "running recovery rest days science"
+    max_results: 5
+    recency_days: 365
+    max_sources_to_llm: 12
+    avoid_used_sources: true
+    avoid_last_n: 30
+    temperature: 0.4
+
+  writer:
+    enabled: true
+    post_type: "amaliy maslahat posti — bitta tor mavzu, 3 ta bajariladigan qadam"
+    max_chars: 900
+    tone: >
+      tajribali yuguruvchi do'stingiz gapirayotgandek: sokin, aniq, ortiqcha
+      ilhomlantirishsiz. Xatoni aytadi, lekin ayblamaydi.
+    address_form: "siz-lab murojaat"
+    emoji: "kam — 2-3 ta, faqat ma'no beradigan joyda"
+    structure:
+      - "hook — ko'p uchraydigan xato yoki aniq holat, 1 qator"
+      - "nega bu muhim — 2 gap, iloji bo'lsa raqam bilan"
+      - "3 ta aniq qadam (nima, qancha, qachon)"
+      - "qisqa ogohlantirish yoki eslatma"
+      - "savol"
+    cta: "o'quvchidan o'z tajribasini so'rovchi bitta aniq savol"
+    hashtags: ["#running", "#movespace"]
+    style_file: "config/style/samples.md"
+    temperature: 0.8
+    avoid:
+      - "'har kuni yuguring' turidagi umumiy chaqiriqlar"
+      - "professional sportchilarga mo'ljallangan murakkab metodikalar"
+      - "jarohat haqida tibbiy tashxis qo'yish"
+
+  image:
+    enabled: false
+    style: "documentary sports photography, early morning park run, natural light, warm tones"
+    aspect_ratio: "16:9"
+
+  audio:
+    enabled: false
+    strip_emoji: true
+    strip_hashtags: true
+    max_chars: 2500
+
+  quality:
+    enabled: true
+    use_llm: true
+    min_score: 7.0
+    min_chars: 250
+    max_links: 1
+    regenerate_from: "writer"
+    banned_words:
+      - "hayotingizni o'zgartiring"
+      - "hech qachon kech emas"
+      - "bugungi postimizda"
+      - "xulosa qilib aytganda"
+      - "kafolatlangan natija"
+      - "mo''jiza"
+
+  publisher:
+    enabled: true
+    mode: "review"
+    send_audio: true
+
+schedule:
+  cron: "0 7 * * mon,thu"
+  timezone: "Asia/Tashkent"

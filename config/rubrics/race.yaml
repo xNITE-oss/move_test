@@ -1,0 +1,93 @@
+# 🏅 Race — marathon, half-marathon, trail va boshqa zabeglar
+# Move Space | Uzbekistan
+
+name: "🏅 Race"
+description: >
+  Musobaqalar: 5K dan marafongacha, trail va ultra. Tayyorgarlik rejasi, start oldidan
+  strategiya, tempo, ovqatlanish va gidratatsiya, start kunidagi xatolar, finishdan
+  keyingi tiklanish. Xalqaro va mintaqaviy zabeglar haqida ham yoziladi.
+enabled: true
+language: uz
+
+pipeline: [research, writer, image, audio, quality, publisher]
+max_retries: 2
+
+image_required: false
+audio_required: false
+
+agents:
+  research:
+    enabled: true
+    queries:
+      - "marathon training plan pacing strategy"
+      - "half marathon race day mistakes"
+      - "trail running race preparation gear"
+      - "race nutrition fueling hydration strategy"
+      - "post race recovery protocol"
+    max_results: 5
+    recency_days: 365
+    max_sources_to_llm: 12
+    avoid_used_sources: true
+    avoid_last_n: 30
+    temperature: 0.4
+
+  writer:
+    enabled: true
+    post_type: >
+      tayyorgarlik yoki start strategiyasi posti — bitta bosqichga fokus,
+      raqamlar bilan (masofa, tempo, hafta)
+    max_chars: 1000
+    tone: >
+      murabbiy ohangi: aniq, talabchan, lekin qo'rqitmaydi. Raqamlar bilan gapiradi,
+      "sekin bor" desa — qancha sekin ekanini aytadi.
+    address_form: "siz-lab murojaat"
+    emoji: "kam — 2-3 ta"
+    structure:
+      - "hook — start kunidagi aniq vaziyat yoki keng tarqalgan xato"
+      - "nima bo'lishini tushuntirish — 2 gap"
+      - "3-4 ta aniq qadam, raqam va vaqt bilan"
+      - "ogohlantirish: nima qilmaslik kerak"
+      - "savol"
+    cta: "o'quvchining keyingi starti yoki tajribasi haqida savol"
+    hashtags: ["#race", "#movespace"]
+    style_file: "config/style/samples.md"
+    temperature: 0.75
+    avoid:
+      - "tayyorgarliksiz uzoq masofaga chiqishga undash"
+      - "og'riqni bosib o'tishni maslahat berish"
+      - "faqat elita sportchilar uchun mos bo'lgan tempolar"
+
+  image:
+    enabled: false
+    style: "race day photography, finish line energy, crowd and runners, dynamic composition"
+    aspect_ratio: "16:9"
+
+  audio:
+    enabled: false
+    strip_emoji: true
+    strip_hashtags: true
+    max_chars: 2800
+
+  quality:
+    enabled: true
+    use_llm: true
+    min_score: 7.5
+    min_chars: 300
+    max_links: 1
+    regenerate_from: "writer"
+    banned_words:
+      - "bir haftada marafon"
+      - "og'riqqa chidang"
+      - "kafolatlangan natija"
+      - "bugungi postimizda"
+      - "xulosa qilib aytganda"
+      - "hech qachon kech emas"
+
+  publisher:
+    enabled: true
+    mode: "review"
+    send_audio: true
+
+schedule:
+  cron: "0 19 * * wed"
+  timezone: "Asia/Tashkent"

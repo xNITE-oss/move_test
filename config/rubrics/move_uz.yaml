@@ -1,0 +1,98 @@
+# 🇺🇿 Move UZ — O'zbekistondagi sportchilar, communitylar va tadbirlar
+# Move Space | Uzbekistan
+#
+# DIQQAT: bu rubrika yangilik/tadbir bilan ishlaydi — sana, joy va narx tez o'zgaradi.
+# Shuning uchun: recency_days qisqa, sifat chegarasi baland, publisher doim "review".
+# Postni chiqarishdan oldin sana va joyni o'zingiz bir marta tekshiring.
+
+name: "🇺🇿 Move UZ"
+description: >
+  O'zbekistondagi sport hayoti: yaqinlashayotgan zabeg va velo-tadbirlar, yugurish
+  va velo klublari, mahalliy sportchilar va ularning natijalari, yangi marshrut va
+  infratuzilma (velo-yo'l, stadion, park). Auditoriya — Toshkent va viloyatlardagi
+  yoshlar; ular uchun asosiysi: qayerda, qachon, qanday qo'shilish mumkin.
+enabled: true
+language: uz
+
+pipeline: [research, writer, image, audio, quality, publisher]
+max_retries: 2
+
+image_required: false
+audio_required: false
+
+agents:
+  research:
+    enabled: true
+    queries:
+      - "Uzbekistan marathon race registration"
+      - "Toshkent yugurish klubi zabeg"
+      - "O'zbekiston sport tadbirlari velosiped poygasi"
+      - "забег Ташкент марафон регистрация"
+      - "Uzbekistan running community trail race"
+    max_results: 6
+    recency_days: 45          # tadbir yangiligi tez eskiradi
+    max_sources_to_llm: 14
+    avoid_used_sources: true
+    avoid_last_n: 40
+    temperature: 0.35         # faktga yaqin turishi uchun past
+
+  writer:
+    enabled: true
+    post_type: >
+      tadbir/community e'loni yoki mahalliy sportchi haqida qisqa material —
+      "qayerda, qachon, qanday qo'shilish mumkin" aniq ko'rsatiladi
+    max_chars: 850
+    tone: >
+      xabar ohangi: qisqa, aniq, ortiqcha bezaksiz. Kanal o'z jamoasi haqida
+      gapirayotgandek — iliq, lekin reklama emas.
+    address_form: "siz-lab murojaat"
+    emoji: "kam — 2-3 ta (📍 sana/joy uchun mos)"
+    structure:
+      - "hook — nima bo'layotgani, 1 qator"
+      - "tafsilot: sana, joy, masofa yoki format"
+      - "kim uchun mos va nima kerak"
+      - "qanday qo'shilish (ro'yxatdan o'tish yoki havola)"
+      - "savol yoki chaqiriq"
+    cta: "borish niyati yoki tajribasi haqida savol"
+    hashtags: ["#moveuz", "#movespace"]
+    style_file: "config/style/samples.md"
+    temperature: 0.65
+    avoid:
+      - "manbada yo'q sana, narx yoki joyni taxmin qilib yozish"
+      - "tashkilotchi nomidan rasmiy e'lon qilib yuborish"
+      - "tekshirilmagan natija yoki rekord haqida da'vo"
+      - "shaxsiy kontakt yoki telefon raqamini e'lon qilish"
+
+  image:
+    enabled: false
+    style: "local community sports photography, group of runners, city or mountain backdrop, documentary style"
+    aspect_ratio: "16:9"
+
+  audio:
+    enabled: false
+    strip_emoji: true
+    strip_hashtags: true
+    max_chars: 2200
+
+  quality:
+    enabled: true
+    use_llm: true
+    min_score: 8.0            # faktik aniqlik talabi baland
+    min_chars: 220
+    max_links: 2              # ro'yxatdan o'tish havolasi uchun joy
+    regenerate_from: "research"   # fakt xato bo'lsa — materialdan qayta boshlaydi
+    banned_words:
+      - "bugungi postimizda"
+      - "xulosa qilib aytganda"
+      - "hayratlanarli"
+      - "shoshiling"
+      - "faqat bugun"
+
+  publisher:
+    enabled: true
+    mode: "review"            # bu rubrikada "auto" tavsiya etilmaydi
+    send_audio: false
+
+schedule:
+  cron: "0 12 * * tue,fri"
+  timezone: "Asia/Tashkent"

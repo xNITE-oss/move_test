@@ -1,0 +1,89 @@
+# 🚴 Cycling — velosiped va cycling
+# Move Space | Uzbekistan
+
+name: "🚴 Cycling"
+description: >
+  Velosiped: shahar ichida qatnov, uzoq masofa (endurance), velosipedni sozlash va
+  ta'mirlash, xavfsizlik va yo'l qoidalari, jihoz. Toshkent sharoiti: tirbandlik,
+  velo-yo'llar kamligi, issiq yoz. Auditoriya — kundalik qatnov va hafta oxiri
+  chiqishlari uchun velosiped minadigan yoshlar.
+enabled: true
+language: uz
+
+pipeline: [research, writer, image, audio, quality, publisher]
+max_retries: 2
+
+image_required: false
+audio_required: false
+
+agents:
+  research:
+    enabled: true
+    queries:
+      - "bike commuting safety tips city traffic"
+      - "bike fit saddle height knee pain"
+      - "basic bicycle maintenance chain tyre pressure"
+      - "long distance cycling endurance nutrition"
+    max_results: 5
+    recency_days: 730
+    max_sources_to_llm: 12
+    avoid_used_sources: true
+    avoid_last_n: 30
+    temperature: 0.4
+
+  writer:
+    enabled: true
+    post_type: "texnik yoki xavfsizlik posti — muammo va aniq yechim"
+    max_chars: 900
+    tone: >
+      amaliy va texnik, lekin sodda. Detalni nomi bilan ataydi va u nima qilishini
+      bir gapda tushuntiradi. Brend reklama qilmaydi.
+    address_form: "siz-lab murojaat"
+    emoji: "kam — 2-3 ta"
+    structure:
+      - "hook — yo'lda uchraydigan aniq muammo"
+      - "sabab — 2 gap"
+      - "3 ta qadam yoki sozlash (raqam bilan: bosim, balandlik, masofa)"
+      - "xavfsizlik eslatmasi"
+      - "savol"
+    cta: "o'quvchining marshruti yoki velosipedi haqida savol"
+    hashtags: ["#cycling", "#movespace"]
+    style_file: "config/style/samples.md"
+    temperature: 0.75
+    avoid:
+      - "yo'l qoidalarini buzishni normallashtirish (qarshi harakat, svetofor)"
+      - "kaskasiz yurishni oddiy holat sifatida ko'rsatish"
+      - "faqat qimmat velosipedlarga mos maslahatlar"
+
+  image:
+    enabled: false
+    style: "urban cycling photography, morning street, motion blur, clean composition"
+    aspect_ratio: "16:9"
+
+  audio:
+    enabled: false
+    strip_emoji: true
+    strip_hashtags: true
+    max_chars: 2500
+
+  quality:
+    enabled: true
+    use_llm: true
+    min_score: 7.0
+    min_chars: 260
+    max_links: 1
+    regenerate_from: "writer"
+    banned_words:
+      - "bugungi postimizda"
+      - "xulosa qilib aytganda"
+      - "eng zo'r usul"
+      - "kafolatlangan natija"
+
+  publisher:
+    enabled: true
+    mode: "review"
+    send_audio: true
+
+schedule:
+  cron: "0 19 * * tue"
+  timezone: "Asia/Tashkent"

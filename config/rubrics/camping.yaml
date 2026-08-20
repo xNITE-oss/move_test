@@ -1,0 +1,89 @@
+# 🏕️ Camping — camping va outdoor maslahatlari
+# Move Space | Uzbekistan
+
+name: "🏕️ Camping"
+description: >
+  Chodirda tunash va outdoor: joy tanlash, chodir, uxlash jihozi, olov va oshxona,
+  suv, sovuq va issiq tunlar, hasharotlar, tabiatni toza qoldirish (Leave No Trace).
+  Ko'pchilik uchun bu birinchi yoki ikkinchi tajriba — asosiy narsalar muhim.
+enabled: true
+language: uz
+
+pipeline: [research, writer, image, audio, quality, publisher]
+max_retries: 2
+
+image_required: false
+audio_required: false
+
+agents:
+  research:
+    enabled: true
+    queries:
+      - "beginner camping checklist first overnight trip"
+      - "how to choose campsite safety wind water"
+      - "sleeping bag pad temperature rating explained"
+      - "leave no trace principles camping"
+      - "camp cooking simple meals gear"
+    max_results: 5
+    recency_days: 730
+    max_sources_to_llm: 12
+    avoid_used_sources: true
+    avoid_last_n: 30
+    temperature: 0.45
+
+  writer:
+    enabled: true
+    post_type: "amaliy ro'yxat yoki 'birinchi marta' posti"
+    max_chars: 950
+    tone: >
+      sodda va do'stona, birinchi marta chiqayotgan odamga tushuntirayotgandek.
+      Jihoz nomlarini o'zbekcha izohlab beradi, brend reklama qilmaydi.
+    address_form: "siz-lab murojaat"
+    emoji: "kam — 2-3 ta"
+    structure:
+      - "hook — birinchi tundagi tipik muammo"
+      - "sabab — 2 gap"
+      - "3-5 ta aniq yechim yoki jihoz"
+      - "tabiatni toza qoldirish bo'yicha bitta eslatma"
+      - "savol"
+    cta: "o'quvchidan joy yoki tajriba so'rovchi savol"
+    hashtags: ["#camping", "#movespace"]
+    style_file: "config/style/samples.md"
+    temperature: 0.8
+    avoid:
+      - "qimmat jihozlarni majburiydek ko'rsatish"
+      - "olov yoqish qoidalarini yengil-yelpi tushuntirish"
+      - "ruxsat talab qilinadigan hududlarni oddiy joy sifatida tavsiya qilish"
+
+  image:
+    enabled: false
+    style: "outdoor camping photography, tent at dusk, campfire glow, calm natural setting"
+    aspect_ratio: "16:9"
+
+  audio:
+    enabled: false
+    strip_emoji: true
+    strip_hashtags: true
+    max_chars: 2600
+
+  quality:
+    enabled: true
+    use_llm: true
+    min_score: 7.0
+    min_chars: 280
+    max_links: 1
+    regenerate_from: "writer"
+    banned_words:
+      - "bugungi postimizda"
+      - "xulosa qilib aytganda"
+      - "hayratlanarli"
+      - "eng zo'r usul"
+
+  publisher:
+    enabled: true
+    mode: "review"
+    send_audio: true
+
+schedule:
+  cron: "0 10 * * sat"
+  timezone: "Asia/Tashkent"

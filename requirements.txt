@@ -1,0 +1,11 @@
+# Asosiy
+httpx>=0.27
+PyYAML>=6.0
+python-dotenv>=1.0
+
+# Scheduler (python cli.py schedule uchun; tizim cron ishlatsangiz shart emas)
+apscheduler>=3.10
+
+# Testlar
+pytest>=8.0
+pytest-asyncio>=0.23

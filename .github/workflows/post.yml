@@ -1,0 +1,90 @@
+name: Move Space — post tayyorlash
+
+# DIQQAT: GitHub cron faqat UTC'da ishlaydi. Toshkent = UTC+5 (yozgi vaqt yo'q),
+# shuning uchun mahalliy vaqtdan 5 soat ayirilgan. Masalan 07:00 Toshkent = 02:00 UTC.
+# Rubrika YAML'idagi cron esa mahalliy vaqtda — u faqat `cli.py schedule` uchun.
+
+on:
+  schedule:
+    - cron: "0 2 * * 1,4"    # 🏃 running     — dush, pay 07:00
+    - cron: "0 14 * * 2"     # 🚴 cycling     — sesh 19:00
+    - cron: "0 14 * * 3"     # 🏅 race        — chor 19:00
+    - cron: "0 13 * * 5"     # ⛰️ hiking      — jum 18:00
+    - cron: "0 5 * * 6"      # 🏕️ camping     — shan 10:00
+    - cron: "0 6 * * 0"      # 👟 active_life — yak 11:00
+    - cron: "0 7 * * 2,5"    # 🇺🇿 move_uz     — sesh, jum 12:00
+  workflow_dispatch:
+    inputs:
+      rubric:
+        description: "Qaysi rubrika"
+        required: true
+        default: running
+        type: choice
+        options: [running, race, hiking, camping, cycling, active_life, move_uz]
+      dry_run:
+        description: "Telegram'ga yubormasdan sinash"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: movespace-state
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Rubrikani aniqlash
+        id: pick
+        run: |
+          case "${{ github.event.schedule }}" in
+            "0 2 * * 1,4")  R=running ;;
+            "0 14 * * 2")   R=cycling ;;
+            "0 14 * * 3")   R=race ;;
+            "0 13 * * 5")   R=hiking ;;
+            "0 5 * * 6")    R=camping ;;
+            "0 6 * * 0")    R=active_life ;;
+            "0 7 * * 2,5")  R=move_uz ;;
+            *)              R="${{ github.event.inputs.rubric }}" ;;
+          esac
+          echo "rubric=${R:-running}" >> "$GITHUB_OUTPUT"
+          echo "Tanlangan rubrika: ${R:-running}"
+
+      - name: Post tayyorlash
+        env:
+          LLM_PROVIDER: anthropic
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: claude-sonnet-4-5
+          SEARCH_PROVIDER: tavily
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_REVIEW_CHAT_ID: ${{ secrets.TELEGRAM_REVIEW_CHAT_ID }}
+          IMAGE_PROVIDER: none
+          TTS_PROVIDER: none
+          TIMEZONE: Asia/Tashkent
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: python cli.py run -r "${{ steps.pick.outputs.rubric }}"
+
+      - name: Holatni saqlash (takroriy mavzu chiqmasligi uchun)
+        if: always()
+        run: |
+          git config user.name  "movespace-bot"
+          git config user.email "actions@github.com"
+          git add -f data/state.db 2>/dev/null || exit 0
+          git diff --staged --quiet && exit 0
+          git commit -m "state: ${{ steps.pick.outputs.rubric }} [skip ci]"
+          git pull --rebase --autostash
+          git push
