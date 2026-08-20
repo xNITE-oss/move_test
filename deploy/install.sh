@@ -23,6 +23,9 @@ die()  { printf "\033[1;31m✗  %s\033[0m\n" "$1" >&2; exit 1; }
 # oddiy `git pull` o'rniga majburan remote holatiga tenglashtiramiz.
 refresh_code() {
   local branch backup
+  # Repo movespace egaligida, skript esa root'da ishlaydi — git "dubious
+  # ownership" deb rad etmasligi uchun katalogni ishonchli deb belgilaymiz.
+  git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
   branch="$(git -C "$APP_DIR" rev-parse --abbrev-ref HEAD)"
   backup="$(mktemp -d)"
   [ -d "$APP_DIR/data" ] && cp -a "$APP_DIR/data/." "$backup/" 2>/dev/null || true
