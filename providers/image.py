@@ -12,9 +12,8 @@ import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-import httpx
-
 from config.settings import Settings, get_settings
+from providers._gemini import gemini_post
 
 log = logging.getLogger("provider.image")
 
@@ -41,18 +40,12 @@ class GeminiImageProvider(ImageProvider):
         url = f"{self.BASE_URL}/{model}:generateContent"
 
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
-
-        async with httpx.AsyncClient(timeout=self.settings.request_timeout) as client:
-            resp = await client.post(
-                url,
-                headers={
-                    "x-goog-api-key": self.settings.gemini_api_key or "",
-                    "content-type": "application/json",
-                },
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        data = await gemini_post(
+            url,
+            payload,
+            api_key=self.settings.gemini_api_key or "",
+            timeout=self.settings.request_timeout,
+        )
 
         for candidate in data.get("candidates", []):
             for part in candidate.get("content", {}).get("parts", []):

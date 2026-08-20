@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 import httpx
 
 from config.settings import Settings, get_settings
+from providers._gemini import gemini_post
 
 log = logging.getLogger("provider.llm")
 
@@ -103,6 +104,56 @@ class OpenAIProvider(LLMProvider):
         return (data["choices"][0]["message"]["content"] or "").strip()
 
 
+class GeminiProvider(LLMProvider):
+    """Google Gemini — bepul tarifi bor (aistudio.google.com dan kalit olinadi).
+
+    Bitta kalit bilan ham matn, ham rasm ishlaydi: LLM_PROVIDER=gemini va
+    IMAGE_PROVIDER=gemini uchun aynan shu GEMINI_API_KEY ishlatiladi.
+    """
+
+    name = "gemini"
+    BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+
+    async def complete(
+        self,
+        prompt: str,
+        *,
+        system: str = "",
+        max_tokens: int = 1500,
+        temperature: float = 0.7,
+    ) -> str:
+        self.settings.require("gemini_api_key")
+        payload: dict = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "maxOutputTokens": max_tokens,
+                "temperature": temperature,
+            },
+        }
+        if system:
+            payload["systemInstruction"] = {"parts": [{"text": system}]}
+
+        url = f"{self.BASE_URL}/{self.settings.gemini_text_model}:generateContent"
+        data = await gemini_post(
+            url,
+            payload,
+            api_key=self.settings.gemini_api_key or "",
+            timeout=self.settings.request_timeout,
+        )
+
+        candidates = data.get("candidates") or []
+        if not candidates:
+            reason = (data.get("promptFeedback") or {}).get("blockReason", "noma'lum sabab")
+            raise RuntimeError(f"Gemini javob qaytarmadi ({reason})")
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = "".join(p.get("text", "") for p in parts).strip()
+        if not text:
+            finish = candidates[0].get("finishReason", "?")
+            raise RuntimeError(f"Gemini bo'sh matn qaytardi (finishReason={finish})")
+        return text
+
+
 class FakeLLMProvider(LLMProvider):
     """Test/dry-run uchun: tarmoqqa chiqmaydi."""
 
@@ -150,6 +201,7 @@ class FakeLLMProvider(LLMProvider):
 _REGISTRY: dict[str, type[LLMProvider]] = {
     "anthropic": AnthropicProvider,
     "openai": OpenAIProvider,
+    "gemini": GeminiProvider,
     "fake": FakeLLMProvider,
 }
 

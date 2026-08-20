@@ -81,7 +81,11 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     s = get_settings()
     checks = [
         ("LLM provider", s.llm_provider, bool(
-            {"anthropic": s.anthropic_api_key, "openai": s.openai_api_key}.get(s.llm_provider, True)
+            {
+                "anthropic": s.anthropic_api_key,
+                "openai": s.openai_api_key,
+                "gemini": s.gemini_api_key,
+            }.get(s.llm_provider, True)
         )),
         ("Search provider", s.search_provider, s.search_provider != "tavily" or bool(s.tavily_api_key)),
         ("Image provider", s.image_provider, s.image_provider != "gemini" or bool(s.gemini_api_key)),
@@ -96,6 +100,26 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         print(f"{name:<22} {str(value):<22} {'✓' if ok else '✗ kalit yetishmayapti'}")
     print(f"\nData papkasi: {s.data_dir}")
     print(f"DRY_RUN: {s.dry_run}")
+
+    if not getattr(args, "live", False):
+        print("\nJonli tekshirish uchun: python cli.py doctor --live")
+        return 0
+
+    from core.selftest import report_to_telegram, run_live_checks
+
+    print("\n--- JONLI TEKSHIRUV (haqiqiy so'rovlar) ---")
+    checks = asyncio.run(run_live_checks(s))
+    for check in checks:
+        print(check.line())
+
+    if asyncio.run(report_to_telegram(s, checks)):
+        print("\nNatija Telegram'ga ham yuborildi.")
+
+    failed = [c for c in checks if not c.ok]
+    if failed:
+        print(f"\n{len(failed)} ta muammo topildi.")
+        return 1
+    print("\nHammasi ishlayapti.")
     return 0
 
 
@@ -142,7 +166,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_hist.set_defaults(func=_cmd_history)
 
     sub.add_parser("schedule", help="Cron bo'yicha doimiy ishlash").set_defaults(func=_cmd_schedule)
-    sub.add_parser("doctor", help="Sozlamalarni tekshirish").set_defaults(func=_cmd_doctor)
+
+    p_doc = sub.add_parser("doctor", help="Sozlamalarni tekshirish")
+    p_doc.add_argument("--live", action="store_true",
+                       help="Har bir xizmatga haqiqiy so'rov yuboradi va natijani Telegram'ga yozadi")
+    p_doc.set_defaults(func=_cmd_doctor)
     return parser
 
 
