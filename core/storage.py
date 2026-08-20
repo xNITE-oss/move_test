@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS posts (
     topic               TEXT,
     status              TEXT NOT NULL,
     post_text           TEXT,
+    content_json        TEXT,
+    web_path            TEXT,
     image_path          TEXT,
     audio_path          TEXT,
     quality_score       REAL,
@@ -64,6 +66,16 @@ class Storage:
     def _init_db(self) -> None:
         with self._conn() as conn:
             conn.executescript(SCHEMA)
+            self._migrate(conn)
+
+    @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """Eski bazalarga yangi ustunlarni qo'shadi (ma'lumot yo'qolmaydi)."""
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(posts)")}
+        for column, ddl in (("content_json", "TEXT"), ("web_path", "TEXT")):
+            if column not in existing:
+                conn.execute(f"ALTER TABLE posts ADD COLUMN {column} {ddl}")
+                log.info("Bazaga '%s' ustuni qo'shildi", column)
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
@@ -96,17 +108,22 @@ class Storage:
     # -- holat ---------------------------------------------------------------
     def upsert_post(self, ctx: PostContext) -> None:
         score = ctx.quality.score if ctx.quality else None
+        content_json = (
+            json.dumps(ctx.content.to_dict(), ensure_ascii=False) if ctx.content else None
+        )
         with self._conn() as conn:
             conn.execute(
                 """
-                INSERT INTO posts (run_id, rubric, topic, status, post_text, image_path,
-                                   audio_path, quality_score, telegram_message_id,
-                                   created_at, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                INSERT INTO posts (run_id, rubric, topic, status, post_text, content_json,
+                                   web_path, image_path, audio_path, quality_score,
+                                   telegram_message_id, created_at, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(run_id) DO UPDATE SET
                     topic=excluded.topic,
                     status=excluded.status,
                     post_text=excluded.post_text,
+                    content_json=COALESCE(excluded.content_json, posts.content_json),
+                    web_path=COALESCE(excluded.web_path, posts.web_path),
                     image_path=excluded.image_path,
                     audio_path=excluded.audio_path,
                     quality_score=excluded.quality_score,
@@ -119,6 +136,8 @@ class Storage:
                     ctx.topic or None,
                     ctx.status.value,
                     ctx.post_text or None,
+                    content_json,
+                    ctx.meta.get("web_path"),
                     ctx.image_path,
                     ctx.audio_path,
                     score,

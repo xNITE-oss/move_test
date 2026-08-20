@@ -50,6 +50,12 @@ class RubricConfig:
         return int(self.raw.get("max_retries", 2))
 
     @property
+    def publish_to(self) -> list[str]:
+        """Post qaysi kanallarga chiqadi: ["telegram"], keyin ["telegram", "web"]."""
+        targets = self.raw.get("publish_to") or ["telegram"]
+        return [str(t).strip().lower() for t in targets if str(t).strip()]
+
+    @property
     def image_required(self) -> bool:
         """True — rasmsiz post chiqmasin (ImageAgent xatosi pipeline'ni to'xtatadi)."""
         return bool(self.raw.get("image_required", False))

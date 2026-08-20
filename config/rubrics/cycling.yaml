@@ -10,6 +10,9 @@ description: >
 enabled: true
 language: uz
 
+# Post qayerga chiqadi. Sayt qo'shilganda: [telegram, web]
+publish_to: [telegram]
+
 pipeline: [research, writer, image, audio, quality, publisher]
 max_retries: 2
 

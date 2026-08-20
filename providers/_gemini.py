@@ -102,6 +102,13 @@ async def gemini_post(
             auth_problem = resp.status_code in (401, 403) or (
                 resp.status_code == 400 and bool(_AUTH_HINT.search(body))
             )
+            if resp.status_code == 429:
+                raise RuntimeError(
+                    "Gemini limiti tugadi (429). Bepul tarifda kunlik so'rovlar soni "
+                    "cheklangan — biroz kutib qayta urining yoki GEMINI_TEXT_MODEL ni "
+                    f"boshqa modelga o'zgartiring. Xom javob: {body[:200]}"
+                )
+
             if not auth_problem:
                 # So'rovning o'zida muammo — boshqa kalit usuli yordam bermaydi
                 raise RuntimeError(f"Gemini xatosi {resp.status_code}: {body}")

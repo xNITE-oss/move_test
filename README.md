@@ -63,11 +63,51 @@ Uchta qoida butun tizimni ushlab turadi:
 3. **Xulq config'da, kodda emas.** Qaysi agent ishlashi, uslub, jadval — hammasi
    rubrika YAML'ida.
 
+### Bitta post — ko'p kanal
+
+Writer tayyor Telegram matnini emas, **tuzilgan kontent** qaytaradi:
+
+```
+PostContent(title, lead, body[], takeaway, cta, tags)
+        │
+        ├──► render_telegram()  → emoji, 900 belgi, hashtag
+        ├──► render_markdown()  → sayt uchun front-matter'li fayl
+        └──► render_html()      → adminka ko'rinishi
+```
+
+Shu sababli saytga chiqarish qo'shilganda Writer ham, promptlar ham, uslub
+namunalari ham qayta yozilmaydi — faqat yangi renderer qo'shiladi.
+
+Post qayerga chiqishi rubrikada belgilanadi:
+
+```yaml
+publish_to: [telegram]          # sayt qo'shilganda: [telegram, web]
+```
+
+`web` yoqilganda `data/site/<rubrika>/<sana>-<slug>.md` fayli yoziladi —
+statik generator yoki backend shuni o'qiydi. Yangi kanal qo'shish uchun
+`agents/publisher_agent.py` ga `_target_<nom>` metodini yozish kifoya.
+
+### Xizmat qatlami
+
+Biznes-mantiq `core/service.py` da — `ContentService`. Telegram boti ham,
+keyingi web-adminka ham aynan shu metodlarni chaqiradi:
+
+```python
+service.create_post("running")      # to'liq pipeline
+service.list_posts(limit=20)        # tarix
+service.get_content(run_id)         # tuzilgan kontent (sayt uchun)
+await service.publish(post)         # tasdiqlangandan keyin
+service.reject(run_id)
+```
+
+Adminka yozilganda mantiq qayta yozilmaydi — ustiga yupqa HTTP qobiq kiyiladi.
+
 ### Papkalar
 
 | Papka | Nima uchun |
 |---|---|
-| `core/` | Pipeline, kontekst, agent interfeysi, storage, registry |
+| `core/` | Pipeline, kontent modeli, renderer'lar, xizmat qatlami, storage |
 | `agents/` | Har bir agent — alohida fayl |
 | `providers/` | Tashqi API'lar (LLM, search, image, TTS, Telegram) |
 | `prompts/` | Prompt shablonlari — kodga tegmasdan tahrirlanadi |

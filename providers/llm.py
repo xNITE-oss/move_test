@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from abc import ABC, abstractmethod
 
@@ -226,27 +227,31 @@ class FakeLLMProvider(LLMProvider):
         if self.responses:
             return self.responses.pop(0)
         # Prompt turiga qarab minimal, lekin to'g'ri formatdagi javob
-        if "JSON" in prompt and "topic" in prompt:
+        if '"topic"' in prompt or "source_indexes" in prompt:
             return (
                 '{"topic": "Test mavzu", "angle": "amaliy", '
                 '"summary": "Qisqa xulosa", "key_points": ["birinchi fakt", "ikkinchi fakt"], '
                 '"source_indexes": [1]}'
             )
-        # Uzunligi haqiqiy postga yaqin — shunda Quality Agent qoidalari
-        # dry-run paytida ham mazmunli ishlaydi.
-        return (
-            "🏃 Birinchi haftada eng ko'p qilinadigan xato — kerakdan tez yugurish.\n\n"
-            "Bu matnni fake provider yozdi: tarmoqqa chiqilmadi, kalit sarflanmadi. "
-            "Haqiqiy LLM ulanganda aynan shu joyda tayyor post turadi va uzunligi "
-            "ham shunga yaqin bo'ladi, shuning uchun sifat tekshiruvi hozir ham "
-            "haqiqiy sharoitdagidek ishlaydi.\n\n"
-            "1. Birinchi hafta — 20 daqiqa, gaplashib yugura oladigan tezlikda\n"
-            "2. Har hafta masofani 10 foizdan ko'p oshirmang\n"
-            "3. Haftada kamida bir kun to'liq dam oling\n\n"
-            "Og'riq paydo bo'lsa — davom etmang, dam bering.\n\n"
-            "Siz haftasiga necha marta chiqasiz?"
-        )
-
+        if '"verdict"' in prompt:
+            return '{"verdict": "pass", "score": 8.5, "issues": [], "suggestions": []}'
+        # Writer: tuzilgan post. Uzunligi haqiqiy postga yaqin, shunda sifat
+        # tekshiruvi dry-run paytida ham mazmunli ishlaydi.
+        return json.dumps({
+            "title": "🏃 Birinchi haftada eng ko'p qilinadigan xato — kerakdan tez yugurish.",
+            "lead": (
+                "Bu matnni fake provider yozdi: tarmoqqa chiqilmadi, kalit sarflanmadi. "
+                "Haqiqiy LLM ulanganda aynan shu joyda tayyor post turadi."
+            ),
+            "body": [
+                "1. Birinchi hafta — 20 daqiqa, gaplashib yugura oladigan tezlikda",
+                "2. Har hafta masofani 10 foizdan ko'p oshirmang",
+                "3. Haftada kamida bir kun to'liq dam oling",
+            ],
+            "takeaway": "Og'riq paydo bo'lsa — davom etmang, dam bering.",
+            "cta": "Siz haftasiga necha marta chiqasiz?",
+            "tags": ["running", "movespace"],
+        }, ensure_ascii=False)
 
 _REGISTRY: dict[str, type[LLMProvider]] = {
     "anthropic": AnthropicProvider,

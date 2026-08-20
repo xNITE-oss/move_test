@@ -161,3 +161,28 @@ async def test_quality_rules_catch_banned_words(settings):
 
     assert ctx.quality.verdict == Verdict.FIX
     assert any("shok" in i for i in ctx.quality.issues)
+
+
+# ── LLM ishlamay qolganda ────────────────────────────────────────────────────
+async def test_quality_survives_llm_outage(settings):
+    """Limit tugasa yoki LLM javob bermasa, tayyor post yo'qolmasligi kerak."""
+    from unittest.mock import patch
+
+    from agents.quality_agent import QualityAgent
+    from core.context import Verdict
+
+    rubric = make_rubric()
+    rubric.raw["agents"]["quality"] = {"enabled": True, "use_llm": True, "min_chars": 10}
+    ctx = PostContext(rubric_key="test_rubrika", post_text="Yetarlicha uzun post matni bu yerda.")
+
+    class Broken:
+        name = "broken"
+
+        async def complete(self, *a, **kw):
+            raise RuntimeError("Gemini limiti tugadi (429)")
+
+    with patch("agents.quality_agent.get_llm_provider", return_value=Broken()):
+        ctx = await QualityAgent(settings, rubric).run(ctx)
+
+    assert ctx.quality.verdict == Verdict.PASS
+    assert "llm:unavailable" in ctx.quality.checked_by

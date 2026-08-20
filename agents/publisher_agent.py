@@ -16,6 +16,7 @@ from pathlib import Path
 
 from core.base_agent import AgentSkip, BaseAgent
 from core.context import PostContext, PostStatus
+from core.render import render_markdown
 from core.storage import Storage
 from providers.telegram import TELEGRAM_CAPTION_LIMIT, get_telegram_client
 
@@ -77,12 +78,61 @@ class PublisherAgent(BaseAgent):
                 raise RuntimeError("TELEGRAM_CHANNEL_ID o'rnatilmagan")
             channel = "<kanal>"
 
-        result = await self._send(client, str(channel), ctx)
-        ctx.telegram_message_id = result.get("message_id")
+        await self._publish_all(client, ctx, str(channel))
         ctx.status = PostStatus.PUBLISHED
+        storage.upsert_post(ctx)
         storage.mark_published(ctx)
-        self.log.info("post kanalga chiqdi: %s (msg_id=%s)", channel, ctx.telegram_message_id)
         return ctx
+
+    # -- chiqarish manzillari -----------------------------------------------------
+    async def _publish_all(self, client, ctx: PostContext, channel: str) -> None:
+        """`publish_to` ro'yxatidagi har bir kanalga chiqaradi.
+
+        Yangi kanal qo'shish uchun `_target_<nom>` metodini yozib, rubrikada
+        `publish_to` ga nomini qo'shish kifoya.
+        """
+        for target in self.rubric.publish_to:
+            handler = getattr(self, f"_target_{target}", None)
+            if handler is None:
+                self.log.warning("'%s' chiqarish manzili noma'lum — o'tkazib yuborildi", target)
+                continue
+            try:
+                await handler(client, ctx, channel)
+            except Exception as exc:  # noqa: BLE001
+                if target == "telegram":
+                    raise
+                ctx.add_error(f"publisher:{target}", str(exc))
+                self.log.error("'%s' ga chiqmadi: %s", target, exc)
+
+    async def _target_telegram(self, client, ctx: PostContext, channel: str) -> None:
+        result = await self._send(client, channel, ctx)
+        ctx.telegram_message_id = result.get("message_id")
+        self.log.info("Telegram: %s (msg_id=%s)", channel, ctx.telegram_message_id)
+
+    async def _target_web(self, client, ctx: PostContext, channel: str) -> None:
+        """Sayt uchun front-matter'li Markdown fayl yozadi.
+
+        Hozircha fayl `data/site/` ichida turadi — statik generator yoki keyingi
+        backend shu papkadan o'qiydi. Sayt API'si paydo bo'lganda shu metod
+        HTTP so'roviga almashtiriladi, boshqa joyga tegilmaydi.
+        """
+        if not ctx.content:
+            raise RuntimeError("Tuzilgan kontent yo'q — saytga chiqarib bo'lmaydi")
+
+        out_dir = Path(self.opt("web_dir", str(self.settings.data_dir / "site"))) / ctx.rubric_key
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"{ctx.created_at[:10]}-{ctx.content.slug}.md"
+
+        path.write_text(
+            render_markdown(
+                ctx.content,
+                meta={"rubric": self.rubric.name, "run_id": ctx.run_id,
+                      "cover": ctx.image_path or ""},
+            ),
+            encoding="utf-8",
+        )
+        ctx.meta["web_path"] = str(path)
+        self.log.info("Sayt: %s", path)
 
     # -- ichki -------------------------------------------------------------------
     async def _send(self, client, chat_id: str, ctx: PostContext) -> dict:

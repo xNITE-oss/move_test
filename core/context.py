@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
+from core.content import PostContent
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -96,6 +98,9 @@ class PostContext:
 
     # Research -> Writer
     research: ResearchResult | None = None
+
+    # Writer -> renderer'lar (Telegram, sayt, ...)
+    content: PostContent | None = None
 
     # Writer -> Image/Audio/Quality
     post_text: str = ""

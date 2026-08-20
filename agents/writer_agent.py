@@ -10,9 +10,11 @@ from pathlib import Path
 
 from config.settings import BASE_DIR
 from core.base_agent import BaseAgent
+from core.content import PostContent
 from core.context import PostContext, PostStatus
 from core.prompts import load_prompt
-from core.utils import normalize_hashtags, strip_code_fence, truncate
+from core.render import render_telegram
+from core.utils import extract_json, normalize_hashtags, strip_code_fence
 from providers.llm import get_llm_provider
 
 DEFAULT_STYLE_FILE = "config/style/samples.md"
@@ -52,21 +54,46 @@ class WriterAgent(BaseAgent):
             prompt,
             system=(
                 "Sen o'zbek tilida yozadigan tajribali SMM-muharrirsan. "
-                "Faqat postning tayyor matnini qaytarasan."
+                "Faqat so'ralgan JSON'ni qaytarasan."
             ),
             max_tokens=int(self.opt("max_tokens", 1500)),
             temperature=float(self.opt("temperature", 0.8)),
         )
 
-        text = self._postprocess(strip_code_fence(raw), max_chars, hashtags)
-        if not text:
+        content = self._parse(raw)
+        if content.is_empty():
             raise RuntimeError("LLM bo'sh post qaytardi")
+        self._repair(content)
 
-        ctx.post_text = text
+        ctx.content = content
+        ctx.post_text = render_telegram(content, max_chars=max_chars, hashtags=hashtags)
         ctx.status = PostStatus.DRAFTED
         ctx.feedback = ""  # feedback ishlatildi
-        self.log.info("post yozildi (%d belgi, urinish %d)", len(text), ctx.attempt + 1)
+        self.log.info(
+            "post yozildi (%d belgi, urinish %d): %s",
+            len(ctx.post_text), ctx.attempt + 1, content.title[:60],
+        )
         return ctx
+
+    def _repair(self, content: PostContent) -> None:
+        """Model unutgan mayda narsalarni tiklaydi (qayta so'ramasdan)."""
+        if not content.cta and content.body and content.body[-1].rstrip().endswith("?"):
+            # savol body'ning oxirida qolib ketgan — CTA sifatida ajratamiz
+            content.cta = content.body.pop().strip()
+            self.log.info("CTA body oxiridan ajratib olindi")
+        if not content.cta:
+            self.log.warning("Model CTA qaytarmadi — Quality buni rad etishi mumkin")
+
+    def _parse(self, raw: str) -> PostContent:
+        """JSON kutamiz; kelmasa — matnni bo'laklarga ajratamiz (post yo'qolmasin)."""
+        try:
+            data = extract_json(raw)
+            if isinstance(data, dict):
+                return PostContent.from_dict(data)
+            raise ValueError("JSON obyekt emas")
+        except ValueError as exc:
+            self.log.warning("JSON o'qilmadi (%s) — matn sifatida ajratilmoqda", exc)
+            return PostContent.from_plain_text(strip_code_fence(raw))
 
     # -- ichki ------------------------------------------------------------------
     def _style_samples(self) -> str:
@@ -99,19 +126,3 @@ class WriterAgent(BaseAgent):
             "Oldingi variant:\n---\n"
             f"{ctx.post_text}\n---"
         )
-
-    def _postprocess(self, text: str, max_chars: int, hashtags: list[str]) -> str:
-        text = text.strip()
-        # LLM ba'zan "Post:" kabi prefiks qo'shadi
-        for prefix in ("Post:", "POST:", "Javob:"):
-            if text.startswith(prefix):
-                text = text[len(prefix):].strip()
-
-        if hashtags:
-            missing = [t for t in hashtags if t.lower() not in text.lower()]
-            if missing:
-                tail = " ".join(missing)
-                budget = max_chars - len(tail) - 2
-                text = f"{truncate(text, budget)}\n\n{tail}"
-
-        return truncate(text, max_chars)

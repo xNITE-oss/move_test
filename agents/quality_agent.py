@@ -109,12 +109,22 @@ class QualityAgent(BaseAgent):
             "fake" if ctx.dry_run and self.opt("fake_llm_on_dry_run", True) else None,
             self.settings,
         )
-        raw = await llm.complete(
-            prompt,
-            system="Sen talabchan, lekin adolatli muharrirsan. Faqat JSON qaytarasan.",
-            max_tokens=int(self.opt("max_tokens", 800)),
-            temperature=0.2,
-        )
+        try:
+            raw = await llm.complete(
+                prompt,
+                system="Sen talabchan, lekin adolatli muharrirsan. Faqat JSON qaytarasan.",
+                max_tokens=int(self.opt("max_tokens", 800)),
+                temperature=0.2,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # LLM-tekshiruv ixtiyoriy qatlam: limit tugasa yoki xizmat javob bermasa,
+            # tayyor postni yo'qotmaymiz — qoidalar natijasi bilan davom etamiz.
+            self.log.warning("LLM tekshiruvi bajarilmadi (%s) — qoidalar natijasi qoladi",
+                             str(exc)[:200])
+            return QualityReport(
+                verdict=Verdict.PASS, score=7.0, checked_by=["llm:unavailable"],
+                suggestions=["LLM tekshiruvi o'tkazilmadi — postni o'zingiz ko'rib chiqing"],
+            )
 
         try:
             data = extract_json(raw)

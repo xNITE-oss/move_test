@@ -21,9 +21,7 @@ import logging
 from config.settings import Settings, get_settings
 from core.context import PostContext, PostStatus
 from core.logging_setup import setup_logging
-from core.pipeline import Pipeline
-from core.registry import build_agent
-from core.rubric import load_rubric
+from core.service import ContentService
 from core.storage import Storage
 
 log = logging.getLogger("approval-bot")
@@ -63,6 +61,7 @@ class ApprovalBot:
     def __init__(self, settings: Settings | None = None, client=None) -> None:
         self.settings = settings or get_settings()
         self.storage = Storage(self.settings)
+        self.service = ContentService(self.settings, self.storage)
         if client is not None:          # testlarda o'rniga soxta client beriladi
             self.client = client
             return
@@ -137,9 +136,7 @@ class ApprovalBot:
             )
 
     async def _ask_rubric(self, chat_id: str) -> None:
-        from core.rubric import load_all_rubrics
-
-        rubrics = load_all_rubrics(only_enabled=True)
+        rubrics = self.service.list_rubrics()
         if not rubrics:
             await self.client.send_message(chat_id, "Yoqilgan rubrika topilmadi.")
             return
@@ -152,7 +149,7 @@ class ApprovalBot:
         )
 
     async def _send_status(self, chat_id: str) -> None:
-        rows = self.storage.history(limit=5)
+        rows = self.service.list_posts(limit=5)
         if not rows:
             await self.client.send_message(chat_id, "Hali post tayyorlanmagan.")
             return
@@ -166,10 +163,8 @@ class ApprovalBot:
         await self.client.send_message(chat_id, "<b>Oxirgi postlar</b>\n\n" + "\n\n".join(lines))
 
     async def _send_rubrics(self, chat_id: str) -> None:
-        from core.rubric import load_all_rubrics
-
         lines = [f"• <b>{r.name}</b> — <code>{r.cron or 'jadvalsiz'}</code>"
-                 for r in load_all_rubrics(only_enabled=True)]
+                 for r in self.service.list_rubrics()]
         await self.client.send_message(
             chat_id,
             "<b>Rubrikalar</b>\n\n" + "\n".join(lines) +
@@ -177,19 +172,16 @@ class ApprovalBot:
         )
 
     async def _make_post(self, chat_id: str, rubric_key: str) -> None:
-        from core.rubric import list_rubric_keys
-
-        if rubric_key not in list_rubric_keys():
+        keys = self.service.rubric_keys()
+        if rubric_key not in keys:
             await self.client.send_message(
-                chat_id,
-                f"'{rubric_key}' rubrikasi yo'q. Mavjudlari: {', '.join(list_rubric_keys())}",
+                chat_id, f"'{rubric_key}' rubrikasi yo'q. Mavjudlari: {', '.join(keys)}"
             )
             return
 
         await self.client.send_message(chat_id, f"⏳ <b>{rubric_key}</b> tayyorlanmoqda…")
         try:
-            rubric = load_rubric(rubric_key)
-            ctx = await Pipeline(rubric, self.settings).run()
+            ctx = await self.service.create_post(rubric_key)
         except Exception as exc:  # noqa: BLE001
             log.error("[%s] post tayyorlanmadi: %s", rubric_key, exc, exc_info=True)
             await self.client.send_message(chat_id, f"⚠️ Xato: {str(exc)[:400]}")
@@ -270,12 +262,12 @@ class ApprovalBot:
             await self.client.answer_callback(callback_id, "✅ Kanalga chiqdi")
             note = "✅ Post kanalga chiqdi."
         elif action == "reject":
-            self.storage.set_status(run_id, PostStatus.REJECTED.value)
+            self.service.reject(run_id)
             await self.client.answer_callback(callback_id, "❌ Bekor qilindi")
             note = "❌ Post bekor qilindi, kanalga chiqmadi."
         else:  # rewrite
             await self.client.answer_callback(callback_id, "✏️ Qayta yozilmoqda...")
-            self.storage.set_status(run_id, PostStatus.REJECTED.value)
+            self.service.reject(run_id)
             await self._rewrite(post["rubric"])
             note = "✏️ Yangi variant tayyorlandi — yuqoriga qarang."
 
@@ -325,47 +317,14 @@ class ApprovalBot:
 
     # -- amallar -------------------------------------------------------------
     async def _publish(self, post: dict) -> None:
-        rubric = self._rubric_for(post)
-        # Shu bir marta uchun "auto" rejimga o'tkazamiz
-        rubric.raw.setdefault("agents", {}).setdefault("publisher", {})["mode"] = "auto"
-
-        ctx = PostContext(rubric_key=post["rubric"] or "noma'lum", run_id=post["run_id"])
-        ctx.post_text = post["post_text"] or ""
-        ctx.image_path = post["image_path"]
-        ctx.audio_path = post["audio_path"]
-        ctx.status = PostStatus.REVIEWED
-        ctx.meta["topic"] = post["topic"] or ""
-
-        agent = build_agent("publisher", self.settings, rubric)
-        agent.client_override = self.client   # bir xil client (va testlarda soxta client)
-        await agent.execute(ctx)
-        self.storage.upsert_post(ctx)
-        self.storage.mark_published(ctx)
-        log.info("[%s] kanalga chiqdi", ctx.run_id)
-
-    def _rubric_for(self, post: dict):
-        """Rubrika config'i. Noma'lum bo'lsa — standart kanalga chiqaradigan minimal config."""
-        from core.rubric import RubricConfig
-
-        key = post.get("rubric")
-        if key:
-            try:
-                return load_rubric(key)
-            except Exception as exc:  # noqa: BLE001
-                log.warning("'%s' rubrikasi o'qilmadi (%s) — standart sozlama", key, exc)
-        return RubricConfig(
-            key=key or "noma'lum",
-            raw={"name": key or "Noma'lum rubrika",
-                 "agents": {"publisher": {"enabled": True, "mode": "auto"}}},
-        )
+        await self.service.publish(post, client=self.client)
 
     async def _rewrite(self, rubric_key: str | None) -> None:
         if not rubric_key:
             log.warning("Rubrika noma'lum — qayta yozib bo'lmaydi")
             return
         try:
-            rubric = load_rubric(rubric_key)
-            ctx = await Pipeline(rubric, self.settings).run()
+            ctx = await self.service.create_post(rubric_key)
             log.info("[%s] qayta yozildi: %s", rubric_key, ctx.status.value)
         except Exception as exc:  # noqa: BLE001
             log.error("[%s] qayta yozishda xato: %s", rubric_key, exc)
