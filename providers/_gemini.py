@@ -14,11 +14,16 @@ Bitta usul ishlagach, keyingi chaqiruvlarda o'sha usul birinchi bo'lib sinaladi.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import httpx
 
 log = logging.getLogger("provider.gemini")
+
+#: Google eski modelni yopganda javobda yangisini aytadi:
+#: "This model models/X is no longer available … Please update your code to use models/Y"
+_SUGGESTED_MODEL = re.compile(r"use\s+models/([A-Za-z0-9._-]+)")
 
 #: qaysi usul oxirgi marta ishlagani (jarayon davomida eslab qolinadi)
 _preferred: str | None = None
@@ -45,12 +50,18 @@ def _order() -> list[str]:
 
 
 async def gemini_post(
-    url: str, payload: dict[str, Any], *, api_key: str, timeout: int = 60
+    url: str,
+    payload: dict[str, Any],
+    *,
+    api_key: str,
+    timeout: int = 60,
+    _model_retry: bool = True,
 ) -> dict[str, Any]:
     """Gemini API'ga POST yuboradi va JSON qaytaradi.
 
-    Autentifikatsiya xatosi (400/401/403) bo'lsa boshqa usulni sinaydi.
-    Boshqa xatolar darhol ko'tariladi — ular kalit bilan bog'liq emas.
+    - Autentifikatsiya xatosi (400/401/403) bo'lsa boshqa usulni sinaydi.
+    - 404 "model endi mavjud emas" bo'lsa, Google taklif qilgan modelga
+      avtomatik o'tib, bir marta qayta uradi (Google modellarni tez-tez yangilaydi).
     """
     global _preferred
     if not api_key:
@@ -68,8 +79,21 @@ async def gemini_post(
                     _preferred = method
                 return resp.json()
 
-            body = resp.text[:250].replace("\n", " ")
+            body = resp.text[:400].replace("\n", " ")
             errors.append(f"{method}: {resp.status_code} {body}")
+
+            if resp.status_code == 404 and _model_retry:
+                new_url = _swap_model(url, body)
+                if new_url:
+                    log.warning(
+                        "Model eskirgan. Google taklifi bo'yicha qayta urinilmoqda: %s\n"
+                        "Doimiy yechim: GEMINI_TEXT_MODEL ni yangilang.",
+                        new_url.rsplit("/", 1)[-1].split(":")[0],
+                    )
+                    return await gemini_post(
+                        new_url, payload, api_key=api_key,
+                        timeout=timeout, _model_retry=False,
+                    )
 
             if resp.status_code not in (400, 401, 403):
                 raise RuntimeError(f"Gemini xatosi {resp.status_code}: {body}")
@@ -77,6 +101,18 @@ async def gemini_post(
     raise RuntimeError(
         "Gemini kaliti qabul qilinmadi. Sinalgan usullar:\n  " + "\n  ".join(errors)
     )
+
+
+def _swap_model(url: str, error_body: str) -> str | None:
+    """Xato matnidan taklif qilingan modelni olib, URL'dagi model nomini almashtiradi."""
+    match = _SUGGESTED_MODEL.search(error_body)
+    if not match:
+        return None
+    suggested = match.group(1)
+    current = url.rsplit("/models/", 1)[-1].split(":")[0] if "/models/" in url else ""
+    if not current or suggested == current:
+        return None
+    return url.replace(f"/models/{current}", f"/models/{suggested}", 1)
 
 
 def reset_preferred() -> None:

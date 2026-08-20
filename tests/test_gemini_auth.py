@@ -121,6 +121,41 @@ async def test_server_error_is_not_retried(monkeypatch):
     assert len(FakeClient.calls) == 1
 
 
+async def test_outdated_model_switches_to_suggested_one(monkeypatch):
+    """Google eski modelni yopganda, javobdagi yangi model bilan qayta uriladi."""
+    err = (
+        '{"error":{"code":404,"message":"This model models/gemini-2.5-flash is no '
+        'longer available to new users. Please update your code to use '
+        'models/gemini-3.6-flash for the latest features","status":"NOT_FOUND"}}'
+    )
+    install(monkeypatch, [FakeResponse(404, text=err), FakeResponse(200, OK)])
+
+    data = await _gemini.gemini_post(URL, {}, api_key="AQ.test")
+
+    assert data == OK
+    assert "gemini-2.5-flash" in FakeClient.calls[0]["url"]
+    assert "gemini-3.6-flash" in FakeClient.calls[1]["url"]
+
+
+async def test_404_without_suggestion_raises(monkeypatch):
+    install(monkeypatch, [FakeResponse(404, text='{"error":"not found"}')])
+
+    with pytest.raises(RuntimeError, match="404"):
+        await _gemini.gemini_post(URL, {}, api_key="AQ.test")
+
+
+async def test_model_swap_happens_only_once(monkeypatch):
+    """Yangi model ham 404 bersa — cheksiz sikl bo'lmasin."""
+    err = ('{"error":{"message":"models/x is no longer available. '
+           'Please update your code to use models/gemini-9-flash"}}')
+    install(monkeypatch, [FakeResponse(404, text=err)] * 4)
+
+    with pytest.raises(RuntimeError, match="404"):
+        await _gemini.gemini_post(URL, {}, api_key="AQ.test")
+
+    assert len(FakeClient.calls) == 2
+
+
 async def test_empty_key_is_rejected():
     with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
         await _gemini.gemini_post(URL, {}, api_key="")
