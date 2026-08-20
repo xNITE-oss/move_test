@@ -1,7 +1,8 @@
 name: Move Space — tasdiqni tekshirish
 
 # Telegram'dagi ✅ / ✏️ / ❌ tugmalarini o'qiydi va bajaradi.
-# Har 15 daqiqada ishlaydi, ya'ni ✅ bosgandan keyin post 15 daqiqagacha kutishi mumkin.
+# Har 5 daqiqada ishlaydi (GitHub ruxsat beradigan eng qisqa oraliq),
+# ya'ni ✅ bosgandan keyin post 5 daqiqagacha kutishi mumkin.
 #
 # Tezroq javob kerak bo'lsa, o'z kompyuteringizda ishlating:
 #     python -m scheduler.approval_bot        (Ctrl+C bilan to'xtaydi, darhol javob beradi)
@@ -9,10 +10,11 @@ name: Move Space — tasdiqni tekshirish
 # Minut sarfi: ochiq (public) repozitoriyda GitHub Actions bepul va cheksiz.
 # Yopiq repozitoriyda oyiga 2000 daqiqa bor — bu jadval uni deyarli to'ldiradi,
 # shuning uchun yopiq repo bo'lsa cron'ni "*/30" ga o'zgartiring.
+# Ochiq repoda esa cheklov yo'q.
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -50,6 +52,7 @@ jobs:
           IMAGE_PROVIDER: none
           TTS_PROVIDER: none
           TIMEZONE: Asia/Tashkent
+          APPROVE_DELAY_NOTE: "5 daq."
         run: python -m scheduler.approval_bot --once
 
       - name: Holatni saqlash

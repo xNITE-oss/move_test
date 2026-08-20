@@ -47,6 +47,21 @@ def _get_int(name: str, default: int) -> int:
         return default
 
 
+def _approve_url() -> str | None:
+    """"Kutmasdan chiqarish" tugmasi uchun havola.
+
+    Qo'lda berilmasa, GitHub Actions ichida avtomatik quriladi:
+    GITHUB_REPOSITORY o'zgaruvchisini GitHub o'zi o'rnatadi.
+    """
+    explicit = _get("APPROVE_WORKFLOW_URL")
+    if explicit:
+        return explicit
+    repo = _get("GITHUB_REPOSITORY")
+    if repo:
+        return f"https://github.com/{repo}/actions/workflows/approve.yml"
+    return None
+
+
 @dataclass(frozen=True)
 class Settings:
     # --- LLM ---------------------------------------------------------------
@@ -76,6 +91,11 @@ class Settings:
     telegram_bot_token: str | None = None
     telegram_channel_id: str | None = None    # @kanal yoki -100...
     telegram_review_chat_id: str | None = None  # tasdiq uchun shaxsiy chat
+
+    # Tasdiq tugmasi navbat orqali ishlaydi. Bu havola "kutmasdan chiqarish"
+    # tugmasiga qo'yiladi — GitHub Actions'da qo'lda ishga tushirish sahifasi.
+    approve_workflow_url: str | None = None
+    approve_delay_note: str = "5 daq."
 
     # --- Umumiy -------------------------------------------------------------
     dry_run: bool = False
@@ -114,6 +134,8 @@ class Settings:
             telegram_bot_token=_get("TELEGRAM_BOT_TOKEN"),
             telegram_channel_id=_get("TELEGRAM_CHANNEL_ID"),
             telegram_review_chat_id=_get("TELEGRAM_REVIEW_CHAT_ID"),
+            approve_workflow_url=_approve_url(),
+            approve_delay_note=_get("APPROVE_DELAY_NOTE") or "5 daq.",
             dry_run=_get_bool("DRY_RUN", False),
             timezone=_get("TIMEZONE") or "Asia/Tashkent",
             log_level=(_get("LOG_LEVEL") or "INFO").upper(),

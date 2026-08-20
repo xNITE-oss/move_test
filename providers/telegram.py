@@ -45,18 +45,35 @@ class TelegramClientBase(ABC):
     async def clear_buttons(self, chat_id: str, message_id: int) -> None:
         return None
 
-    async def send_for_review(self, chat_id: str, text: str, run_id: str, **kwargs: Any) -> dict:
-        """Tasdiq uchun inline tugmalar bilan yuborish."""
-        keyboard = {
-            "inline_keyboard": [
-                [
-                    {"text": "✅ Chiqarish", "callback_data": f"approve:{run_id}"},
-                    {"text": "✏️ Qayta yozish", "callback_data": f"rewrite:{run_id}"},
-                    {"text": "❌ Bekor", "callback_data": f"reject:{run_id}"},
-                ]
-            ]
-        }
-        return await self.send_message(chat_id, text, reply_markup=keyboard, **kwargs)
+    async def send_for_review(
+        self,
+        chat_id: str,
+        text: str,
+        run_id: str,
+        *,
+        delay_note: str = "5 daq.",
+        instant_url: str | None = None,
+        **kwargs: Any,
+    ) -> dict:
+        """Tasdiq uchun inline tugmalar bilan yuborish.
+
+        Tugma bosilishi darhol emas, navbat orqali qayta ishlanadi — shuning uchun
+        tugma matnida kutish vaqti yoziladi. `instant_url` berilsa, kutmaslik uchun
+        qo'shimcha havola tugmasi chiqadi (GitHub'da qo'lda ishga tushirish sahifasi).
+        """
+        rows = [
+            [{"text": f"✅ Chiqarish ({delay_note})", "callback_data": f"approve:{run_id}"}],
+            [
+                {"text": "✏️ Qayta yozish", "callback_data": f"rewrite:{run_id}"},
+                {"text": "❌ Bekor", "callback_data": f"reject:{run_id}"},
+            ],
+        ]
+        if instant_url:
+            rows.append([{"text": "⚡️ Kutmasdan chiqarish", "url": instant_url}])
+
+        return await self.send_message(
+            chat_id, text, reply_markup={"inline_keyboard": rows}, **kwargs
+        )
 
 
 class TelegramClient(TelegramClientBase):

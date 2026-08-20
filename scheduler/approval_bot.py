@@ -109,19 +109,31 @@ class ApprovalBot:
 
         log.info("[%s] %s", run_id, action)
 
+        note = ""
         if action == "approve":
             await self._publish(post)
             await self.client.answer_callback(callback_id, "✅ Kanalga chiqdi")
+            note = "✅ Post kanalga chiqdi."
         elif action == "reject":
             self.storage.set_status(run_id, PostStatus.REJECTED.value)
             await self.client.answer_callback(callback_id, "❌ Bekor qilindi")
+            note = "❌ Post bekor qilindi, kanalga chiqmadi."
         else:  # rewrite
             await self.client.answer_callback(callback_id, "✏️ Qayta yozilmoqda...")
             self.storage.set_status(run_id, PostStatus.REJECTED.value)
             await self._rewrite(post["rubric"])
+            note = "✏️ Yangi variant tayyorlandi — yuqoriga qarang."
 
         if chat_id and message_id:
             await self.client.clear_buttons(chat_id, message_id)
+
+        # Tugma bosilgani natijasini ko'rsatib qo'yamiz: bosgan paytda
+        # hech narsa o'zgarmagandek tuyuladi, chunki javob navbat orqali keladi.
+        if chat_id and note:
+            try:
+                await self.client.send_message(chat_id, note)
+            except Exception as exc:  # noqa: BLE001
+                log.debug("Tasdiq izohi yuborilmadi: %s", exc)
 
     # -- amallar -------------------------------------------------------------
     async def _publish(self, post: dict) -> None:

@@ -96,6 +96,11 @@ async def test_approve_publishes_post(settings):
     assert 42 in client.cleared
 
 
+def to_channel(client: "FakeClient") -> list[tuple[str, str]]:
+    """Kanalga ketgan xabarlar (tasdiq chatiga yozilgan izohlar hisobga olinmaydi)."""
+    return [s for s in client.sent if s[0] == "@testkanal"]
+
+
 async def test_reject_marks_post_rejected(settings):
     ctx = seed_post(settings)
     client = FakeClient([callback("reject", ctx.run_id)])
@@ -103,7 +108,7 @@ async def test_reject_marks_post_rejected(settings):
 
     await bot.poll_once()
 
-    assert not client.sent
+    assert not to_channel(client)
     assert bot.storage.get_post(ctx.run_id)["status"] == PostStatus.REJECTED.value
 
 
@@ -141,5 +146,5 @@ async def test_double_approve_does_not_publish_twice(settings):
     client.updates = [dict(callback("approve", ctx.run_id), update_id=101)]
     await bot.poll_once()
 
-    assert len(client.sent) == 1
+    assert len(to_channel(client)) == 1, "post ikki marta chiqib ketdi"
     assert "allaqachon" in client.answers[-1]

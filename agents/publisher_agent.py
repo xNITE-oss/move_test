@@ -51,12 +51,16 @@ class PublisherAgent(BaseAgent):
                     )
                 chat_id = "<review-chat>"  # dry-run'da kalitsiz ham sinash mumkin
             header = (
-                f"🧪 <b>Tasdiq kutilmoqda</b>\n"
-                f"Rubrika: {self.rubric.name}\nrun_id: <code>{ctx.run_id}</code>\n"
-                f"Sifat: {ctx.quality.score if ctx.quality else '-'}\n\n"
+                f"🧪 <b>Tasdiq kutilmoqda</b> — {self.rubric.name}\n"
+                f"Sifat bahosi: {ctx.quality.score if ctx.quality else '-'}\n"
+                f"<code>{ctx.run_id}</code>\n\n"
             )
             result = await client.send_for_review(
-                str(chat_id), header + ctx.post_text, ctx.run_id
+                str(chat_id),
+                header + ctx.post_text,
+                ctx.run_id,
+                delay_note=self.opt("delay_note", self.settings.approve_delay_note),
+                instant_url=self.opt("instant_url", self.settings.approve_workflow_url),
             )
             ctx.telegram_message_id = result.get("message_id")
             ctx.status = PostStatus.PENDING_APPROVAL
