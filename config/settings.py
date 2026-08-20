@@ -79,6 +79,10 @@ class Settings:
     image_provider: str = "none"             # none | gemini | fake
     gemini_api_key: str | None = None
     gemini_text_model: str = "gemini-3.5-flash"
+    #: Asosiy model limitga urilsa (429) ketma-ket sinaladigan zaxira modellar
+    gemini_fallback_models: tuple[str, ...] = (
+        "gemini-3.5-flash-lite", "gemini-flash-lite-latest",
+    )
     gemini_image_model: str = "gemini-2.5-flash-image"
 
     # --- Audio (keyinroq) ---------------------------------------------------
@@ -126,6 +130,12 @@ class Settings:
             image_provider=(_get("IMAGE_PROVIDER") or "none").lower(),
             gemini_api_key=_get("GEMINI_API_KEY"),
             gemini_text_model=_get("GEMINI_TEXT_MODEL") or "gemini-3.5-flash",
+            gemini_fallback_models=tuple(
+                m.strip() for m in (
+                    _get("GEMINI_FALLBACK_MODELS")
+                    or "gemini-3.5-flash-lite,gemini-flash-lite-latest"
+                ).split(",") if m.strip()
+            ),
             gemini_image_model=_get("GEMINI_IMAGE_MODEL") or "gemini-2.5-flash-image",
             tts_provider=(_get("TTS_PROVIDER") or "none").lower(),
             elevenlabs_api_key=_get("ELEVENLABS_API_KEY"),

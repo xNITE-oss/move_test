@@ -28,6 +28,7 @@ class LLMProvider(ABC):
         system: str = "",
         max_tokens: int = 1500,
         temperature: float = 0.7,
+        model: str | None = None,
     ) -> str:
         ...
 
@@ -43,10 +44,11 @@ class AnthropicProvider(LLMProvider):
         system: str = "",
         max_tokens: int = 1500,
         temperature: float = 0.7,
+        model: str | None = None,
     ) -> str:
         self.settings.require("anthropic_api_key")
         payload = {
-            "model": self.settings.anthropic_model,
+            "model": model or self.settings.anthropic_model,
             "max_tokens": max_tokens,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
@@ -82,6 +84,7 @@ class OpenAIProvider(LLMProvider):
         system: str = "",
         max_tokens: int = 1500,
         temperature: float = 0.7,
+        model: str | None = None,
     ) -> str:
         self.settings.require("openai_api_key")
         messages = []
@@ -94,7 +97,7 @@ class OpenAIProvider(LLMProvider):
                 self.API_URL,
                 headers={"Authorization": f"Bearer {self.settings.openai_api_key}"},
                 json={
-                    "model": self.settings.openai_model,
+                    "model": model or self.settings.openai_model,
                     "messages": messages,
                     "max_tokens": max_tokens,
                     "temperature": temperature,
@@ -125,17 +128,50 @@ class GeminiProvider(LLMProvider):
         system: str = "",
         max_tokens: int = 1500,
         temperature: float = 0.7,
+        model: str | None = None,
     ) -> str:
         """Gemini'dan matn oladi.
 
-        Yangi Gemini modellari javobdan oldin ichki "o'ylash" (thinking) bosqichini
-        bajaradi va u ham chiqish budjetidan yeyiladi. Budjet kichik bo'lsa model
-        bo'sh matn va finishReason=MAX_TOKENS qaytaradi. Shuning uchun:
-          1-urinish: o'ylash o'chirilgan (tez va arzon)
-          2-urinish: o'ylash yoqilgan, budjet 4 barobar katta
+        Ikki xil muammoni o'zi hal qiladi:
+
+        1. **O'ylash budjeti.** Yangi modellar javobdan oldin ichki "thinking"
+           bosqichini bajaradi va u ham chiqish budjetidan yeyiladi. Shuning uchun
+           avval o'ylash o'chirilgan holda, keyin katta budjet bilan uriniladi.
+        2. **Limit (429).** Bepul tarifda har bir modelning alohida kunlik limiti
+           bor. Asosiy model tugasa, `GEMINI_FALLBACK_MODELS` dagi yengilroq
+           modelga o'tadi — post yo'qolmaydi.
         """
         self.settings.require("gemini_api_key")
-        url = f"{self.BASE_URL}/{self.settings.gemini_text_model}:generateContent"
+        models = [model or self.settings.gemini_text_model]
+        models += [m for m in self.settings.gemini_fallback_models if m not in models]
+
+        last_error: Exception | None = None
+        for i, candidate in enumerate(models):
+            try:
+                return await self._complete_with_model(
+                    candidate, prompt, system=system,
+                    max_tokens=max_tokens, temperature=temperature,
+                )
+            except RuntimeError as exc:
+                last_error = exc
+                if "429" not in str(exc) or i + 1 >= len(models):
+                    raise
+                log.warning(
+                    "'%s' limiti tugadi — '%s' modeliga o'tilmoqda",
+                    candidate, models[i + 1],
+                )
+        raise last_error or RuntimeError("Gemini javob bermadi")
+
+    async def _complete_with_model(
+        self,
+        model: str,
+        prompt: str,
+        *,
+        system: str,
+        max_tokens: int,
+        temperature: float,
+    ) -> str:
+        url = f"{self.BASE_URL}/{model}:generateContent"
         budget = max(max_tokens, self.MIN_OUTPUT_TOKENS)
 
         attempts = [
@@ -167,6 +203,10 @@ class GeminiProvider(LLMProvider):
                     timeout=self.settings.request_timeout,
                 )
             except RuntimeError as exc:
+                # Limit xatosi bo'lsa qayta urinish foydasiz — yuqoriga uzatamiz,
+                # u yerda boshqa modelga o'tiladi.
+                if "429" in str(exc):
+                    raise
                 # Ba'zi modellar thinkingConfig'ni umuman qabul qilmaydi va buni
                 # umumiy "invalid argument" xatosi bilan aytadi. Shuning uchun
                 # o'ylash yuborilgan urinish xato bersa — usiz qayta uramiz.
@@ -222,8 +262,9 @@ class FakeLLMProvider(LLMProvider):
         system: str = "",
         max_tokens: int = 1500,
         temperature: float = 0.7,
+        model: str | None = None,
     ) -> str:
-        self.calls.append({"prompt": prompt, "system": system})
+        self.calls.append({"prompt": prompt, "system": system, "model": model})
         if self.responses:
             return self.responses.pop(0)
         # Prompt turiga qarab minimal, lekin to'g'ri formatdagi javob

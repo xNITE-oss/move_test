@@ -115,6 +115,7 @@ class QualityAgent(BaseAgent):
                 system="Sen talabchan, lekin adolatli muharrirsan. Faqat JSON qaytarasan.",
                 max_tokens=int(self.opt("max_tokens", 800)),
                 temperature=0.2,
+                model=self.opt("model"),
             )
         except Exception as exc:  # noqa: BLE001
             # LLM-tekshiruv ixtiyoriy qatlam: limit tugasa yoki xizmat javob bermasa,

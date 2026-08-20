@@ -28,6 +28,11 @@ Kanal: 🏃 Run • ⛰️ Hike • 🏕️ Camp • 🚴 Ride — yoshlar uchun
 - Har bir maslahat amalda bajariladigan bo'lsin: nima, qancha, qachon.
 - Sog'liq bilan bog'liq qat'iy tavsiyalar berma; jiddiy holatda mutaxassisga murojaat qilishni esla.
 - Markdown sarlavhalari (#, ##) ishlatma.
+- **Material asosan chet el manbalaridan olingan.** O'zbekistonga taalluqli
+  bo'lmagan tafsilotlarni tashlab yubor yoki mahalliy muqobil bilan almashtir:
+  boshqa iqlim, boshqa hayvonot (masalan ayiqlardan himoya qutilari), chet el
+  narxlari, u yerdagi qonun-qoidalar, mahalliy bo'lmagan brend va do'konlar.
+  O'quvchi Toshkentda yoki viloyatda — maslahat unga bajariladigan bo'lsin.
 
 ## Sun'iy AI uslubidan qochish (eng muhim qoida)
 Post odam yozganday o'qilsin. Quyidagilar TAQIQLANADI:

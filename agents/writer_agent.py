@@ -58,6 +58,7 @@ class WriterAgent(BaseAgent):
             ),
             max_tokens=int(self.opt("max_tokens", 1500)),
             temperature=float(self.opt("temperature", 0.8)),
+            model=self.opt("model"),
         )
 
         content = self._parse(raw)

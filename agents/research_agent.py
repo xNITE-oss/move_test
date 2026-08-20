@@ -105,6 +105,7 @@ class ResearchAgent(BaseAgent):
             system="Sen aniq, faktlarga tayanadigan kontent-tadqiqotchisan. Faqat JSON qaytarasan.",
             max_tokens=int(self.opt("max_tokens", 1200)),
             temperature=float(self.opt("temperature", 0.4)),
+            model=self.opt("model"),
         )
         data = extract_json(raw)
 
