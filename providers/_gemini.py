@@ -25,6 +25,10 @@ log = logging.getLogger("provider.gemini")
 #: "This model models/X is no longer available … Please update your code to use models/Y"
 _SUGGESTED_MODEL = re.compile(r"use\s+models/([A-Za-z0-9._-]+)")
 
+#: 400 xatosi ham kalit, ham noto'g'ri so'rov sababli bo'lishi mumkin.
+#: Faqat kalitga o'xshagan xabar bo'lsa boshqa autentifikatsiya usuli sinaladi.
+_AUTH_HINT = re.compile(r"api[ _-]?key|credential|authentic|unauthorized", re.I)
+
 #: qaysi usul oxirgi marta ishlagani (jarayon davomida eslab qolinadi)
 _preferred: str | None = None
 
@@ -95,7 +99,11 @@ async def gemini_post(
                         timeout=timeout, _model_retry=False,
                     )
 
-            if resp.status_code not in (400, 401, 403):
+            auth_problem = resp.status_code in (401, 403) or (
+                resp.status_code == 400 and bool(_AUTH_HINT.search(body))
+            )
+            if not auth_problem:
+                # So'rovning o'zida muammo — boshqa kalit usuli yordam bermaydi
                 raise RuntimeError(f"Gemini xatosi {resp.status_code}: {body}")
 
     raise RuntimeError(

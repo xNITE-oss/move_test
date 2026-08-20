@@ -166,10 +166,12 @@ class GeminiProvider(LLMProvider):
                     timeout=self.settings.request_timeout,
                 )
             except RuntimeError as exc:
-                # Ba'zi modellar thinkingBudget=0 ni qabul qilmaydi — keyingi urinishga
-                if "think" in str(exc).lower() and i + 1 < len(attempts):
+                # Ba'zi modellar thinkingConfig'ni umuman qabul qilmaydi va buni
+                # umumiy "invalid argument" xatosi bilan aytadi. Shuning uchun
+                # o'ylash yuborilgan urinish xato bersa — usiz qayta uramiz.
+                if attempt["thinking"] is not None and i + 1 < len(attempts):
                     last_problem = str(exc)[:200]
-                    log.info("Model o'ylashni o'chirishga ruxsat bermadi, qayta urinilmoqda")
+                    log.info("Model thinkingConfig'ni qabul qilmadi — usiz qayta urinilmoqda")
                     continue
                 raise
 

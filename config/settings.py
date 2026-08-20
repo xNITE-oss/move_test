@@ -63,7 +63,7 @@ class Settings:
     # --- Gemini (matn uchun ham, rasm uchun ham bitta kalit) -----------------
     image_provider: str = "none"             # none | gemini | fake
     gemini_api_key: str | None = None
-    gemini_text_model: str = "gemini-3.6-flash"
+    gemini_text_model: str = "gemini-3.5-flash"
     gemini_image_model: str = "gemini-2.5-flash-image"
 
     # --- Audio (keyinroq) ---------------------------------------------------
@@ -105,7 +105,7 @@ class Settings:
             tavily_api_key=_get("TAVILY_API_KEY"),
             image_provider=(_get("IMAGE_PROVIDER") or "none").lower(),
             gemini_api_key=_get("GEMINI_API_KEY"),
-            gemini_text_model=_get("GEMINI_TEXT_MODEL") or "gemini-3.6-flash",
+            gemini_text_model=_get("GEMINI_TEXT_MODEL") or "gemini-3.5-flash",
             gemini_image_model=_get("GEMINI_IMAGE_MODEL") or "gemini-2.5-flash-image",
             tts_provider=(_get("TTS_PROVIDER") or "none").lower(),
             elevenlabs_api_key=_get("ELEVENLABS_API_KEY"),
