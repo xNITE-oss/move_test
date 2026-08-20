@@ -124,6 +124,40 @@ async def test_stranger_cannot_publish(settings):
     assert client.answers == ["Ruxsat yo'q"]
 
 
+async def test_publishes_from_message_text_when_db_lost_the_post(settings):
+    """Baza eskirgan bo'lsa ham ✅ ishlashi kerak — matn tasdiq xabarida turadi."""
+    run_id = "20260820-194628-cf4e76"
+    post_body = (
+        "🏃 Issiqda yugurganda tezroq charchaganingizni sezganmisiz?\n\n"
+        "Yozgi issiqda 20 daqiqada organizm 350 ml gacha suyuqlik yo'qotadi.\n\n"
+        "Siz qanday ichasiz?"
+    )
+    update = callback("approve", run_id)
+    update["callback_query"]["message"]["text"] = (
+        f"🧪 Tasdiq kutilmoqda — 🏃 Running\nSifat bahosi: 9.5\n{run_id}\n\n{post_body}"
+    )
+
+    client = FakeClient([update])
+    bot = ApprovalBot(settings, client=client)   # bazada bu run yo'q
+
+    await bot.poll_once()
+
+    sent = to_channel(client)
+    assert len(sent) == 1, "post kanalga chiqmadi"
+    assert sent[0][1].startswith("🏃 Issiqda yugurganda")
+    assert "Tasdiq kutilmoqda" not in sent[0][1], "sarlavha ham chiqib ketdi"
+
+
+async def test_unknown_post_without_text_is_reported(settings):
+    client = FakeClient([callback("approve", "yo-q-run")])
+    bot = ApprovalBot(settings, client=client)
+
+    await bot.poll_once()
+
+    assert not to_channel(client)
+    assert client.answers == ["Post topilmadi"]
+
+
 async def test_offset_is_remembered(settings):
     ctx = seed_post(settings)
     client = FakeClient([callback("reject", ctx.run_id)])

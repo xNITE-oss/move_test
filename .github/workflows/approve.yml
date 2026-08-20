@@ -55,14 +55,26 @@ jobs:
           APPROVE_DELAY_NOTE: "5 daq."
         run: python -m scheduler.approval_bot --once
 
-      - name: Holatni saqlash
+      - name: Holatni saqlash (tasdiq offseti)
         if: always()
         continue-on-error: true
         run: |
+          test -f data/state.db || exit 0
           git config user.name  "movespace-bot"
           git config user.email "actions@github.com"
-          git add -f data/state.db 2>/dev/null || exit 0
-          git diff --staged --quiet && exit 0
-          git commit -m "state: approval [skip ci]"
-          git pull --rebase --autostash origin "${{ github.ref_name }}" || true
-          git push origin "HEAD:${{ github.ref_name }}" || true
+          cp data/state.db /tmp/state.db
+          # Bir vaqtda boshqa run ham yozgan bo'lishi mumkin — remote'ni olib,
+          # ustiga o'z nusxamizni qo'yamiz va push'ni 3 marta sinaymiz.
+          for i in 1 2 3; do
+            git fetch -q origin "${{ github.ref_name }}" || true
+            git reset -q --hard "origin/${{ github.ref_name }}" || true
+            mkdir -p data && cp /tmp/state.db data/state.db
+            git add -f data/state.db
+            if git diff --staged --quiet; then exit 0; fi
+            git commit -q -m "state: approval [skip ci]"
+            if git push -q origin "HEAD:${{ github.ref_name }}"; then
+              echo "Holat saqlandi"; exit 0
+            fi
+            echo "push urinishi $i muvaffaqiyatsiz — qayta urinilmoqda"; sleep 3
+          done
+          echo "::warning::Holat bazasi saqlanmadi (takroriy mavzu chiqishi mumkin)"

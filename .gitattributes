@@ -1,0 +1,4 @@
+# Holat bazasi — ikkilik fayl. Git uni matn sifatida birlashtirishga urinmasin.
+# Lokal `git pull` paytida ziddiyat chiqsa, GitHub'dagi nusxani oling:
+#     git checkout --theirs data/state.db && git add data/state.db
+data/state.db binary -diff -merge

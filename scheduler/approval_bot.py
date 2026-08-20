@@ -100,8 +100,15 @@ class ApprovalBot:
 
         post = self.storage.get_post(run_id)
         if not post:
-            await self.client.answer_callback(callback_id, "Post topilmadi (baza tozalangan?)")
-            return
+            # Baza eskirgan yoki yo'qolgan bo'lishi mumkin (GitHub'da state.db
+            # runlar orasida ziddiyatga uchraydi). Bunday holda post matnini
+            # tasdiq xabarining o'zidan olamiz — u yerda to'liq turibdi.
+            post = self._post_from_message(message, run_id)
+            if not post:
+                await self.client.answer_callback(callback_id, "Post topilmadi")
+                log.warning("[%s] bazada ham, xabarda ham post topilmadi", run_id)
+                return
+            log.warning("[%s] bazada yo'q — matn tasdiq xabaridan olindi", run_id)
 
         if post["status"] == PostStatus.PUBLISHED.value:
             await self.client.answer_callback(callback_id, "Bu post allaqachon chiqqan")
@@ -135,13 +142,46 @@ class ApprovalBot:
             except Exception as exc:  # noqa: BLE001
                 log.debug("Tasdiq izohi yuborilmadi: %s", exc)
 
+    # -- zaxira: postni tasdiq xabaridan tiklash ------------------------------
+    def _post_from_message(self, message: dict, run_id: str) -> dict | None:
+        """Tasdiq xabari matnidan post matnini ajratib oladi.
+
+        Xabar ko'rinishi:
+            🧪 Tasdiq kutilmoqda — <rubrika>
+            Sifat bahosi: 9.5
+            <run_id>
+            <bo'sh qator>
+            <postning o'zi>
+        """
+        text = message.get("text") or ""
+        if run_id in text:
+            body = text.split(run_id, 1)[1].lstrip("\n ")
+        elif "\n\n" in text:
+            body = text.split("\n\n", 1)[1]
+        else:
+            return None
+
+        body = body.strip()
+        if len(body) < 50:
+            return None
+
+        return {
+            "run_id": run_id,
+            "rubric": None,          # rubrika noma'lum — standart kanal ishlatiladi
+            "status": PostStatus.PENDING_APPROVAL.value,
+            "post_text": body,
+            "image_path": None,
+            "audio_path": None,
+            "topic": None,
+        }
+
     # -- amallar -------------------------------------------------------------
     async def _publish(self, post: dict) -> None:
-        rubric = load_rubric(post["rubric"])
+        rubric = self._rubric_for(post)
         # Shu bir marta uchun "auto" rejimga o'tkazamiz
         rubric.raw.setdefault("agents", {}).setdefault("publisher", {})["mode"] = "auto"
 
-        ctx = PostContext(rubric_key=post["rubric"], run_id=post["run_id"])
+        ctx = PostContext(rubric_key=post["rubric"] or "noma'lum", run_id=post["run_id"])
         ctx.post_text = post["post_text"] or ""
         ctx.image_path = post["image_path"]
         ctx.audio_path = post["audio_path"]
@@ -155,7 +195,26 @@ class ApprovalBot:
         self.storage.mark_published(ctx)
         log.info("[%s] kanalga chiqdi", ctx.run_id)
 
-    async def _rewrite(self, rubric_key: str) -> None:
+    def _rubric_for(self, post: dict):
+        """Rubrika config'i. Noma'lum bo'lsa — standart kanalga chiqaradigan minimal config."""
+        from core.rubric import RubricConfig
+
+        key = post.get("rubric")
+        if key:
+            try:
+                return load_rubric(key)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("'%s' rubrikasi o'qilmadi (%s) — standart sozlama", key, exc)
+        return RubricConfig(
+            key=key or "noma'lum",
+            raw={"name": key or "Noma'lum rubrika",
+                 "agents": {"publisher": {"enabled": True, "mode": "auto"}}},
+        )
+
+    async def _rewrite(self, rubric_key: str | None) -> None:
+        if not rubric_key:
+            log.warning("Rubrika noma'lum — qayta yozib bo'lmaydi")
+            return
         try:
             rubric = load_rubric(rubric_key)
             ctx = await Pipeline(rubric, self.settings).run()
