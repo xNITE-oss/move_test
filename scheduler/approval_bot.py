@@ -29,7 +29,34 @@ from core.storage import Storage
 log = logging.getLogger("approval-bot")
 
 OFFSET_KEY = "telegram_update_offset"
-ACTIONS = ("approve", "rewrite", "reject")
+ACTIONS = ("approve", "rewrite", "reject", "make")
+
+#: Telegram buyruqlar menyusi (setMyCommands orqali ro'yxatdan o'tadi)
+BOT_COMMANDS = [
+    {"command": "post", "description": "Post tayyorlash"},
+    {"command": "holat", "description": "Oxirgi postlar holati"},
+    {"command": "rubrikalar", "description": "Rubrikalar ro'yxati"},
+]
+
+#: Yozuv maydoni ostidagi doimiy tugmalar
+MENU_KEYBOARD = {
+    "keyboard": [[{"text": "📝 Post tayyorlash"}, {"text": "📊 Holat"}]],
+    "resize_keyboard": True,
+    "is_persistent": True,
+}
+
+MAKE_POST_TEXTS = {"📝 post tayyorlash", "post tayyorlash", "/post"}
+STATUS_TEXTS = {"📊 holat", "holat", "/holat"}
+
+HELP_TEXT = (
+    "<b>Move Space kontent-boti</b>\n\n"
+    "📝 <b>Post tayyorlash</b> — rubrikani tanlaysiz, bot material topib, "
+    "post yozadi va shu yerga tasdiqqa yuboradi.\n"
+    "📊 <b>Holat</b> — oxirgi postlar va ularning holati.\n\n"
+    "Postlar jadval bo'yicha o'zi ham tayyorlanadi — /rubrikalar da ko'rasiz.\n\n"
+    "<i>Eslatma: buyruqlar navbat orqali bajariladi, javob 5 daqiqagacha "
+    "kechikishi mumkin.</i>"
+)
 
 
 class ApprovalBot:
@@ -45,7 +72,24 @@ class ApprovalBot:
         self.client = get_telegram_client(self.settings, dry_run=False)
 
     # -- asosiy sikl ---------------------------------------------------------
+    async def ensure_menu(self) -> None:
+        """Buyruqlar menyusini bir marta ro'yxatdan o'tkazadi."""
+        if self.storage.get_state("menu_registered"):
+            return
+        try:
+            await self.client.set_my_commands(BOT_COMMANDS)
+            if self.settings.telegram_review_chat_id:
+                await self.client.send_message(
+                    str(self.settings.telegram_review_chat_id),
+                    HELP_TEXT, reply_markup=MENU_KEYBOARD,
+                )
+            self.storage.set_state("menu_registered", "1")
+            log.info("Buyruqlar menyusi ro'yxatdan o'tdi")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Menyuni ro'yxatdan o'tkazib bo'lmadi: %s", exc)
+
     async def poll_once(self, timeout: int = 0) -> int:
+        await self.ensure_menu()
         offset_raw = self.storage.get_state(OFFSET_KEY)
         offset = int(offset_raw) + 1 if offset_raw else None
 
@@ -54,16 +98,112 @@ class ApprovalBot:
 
         for update in updates:
             self.storage.set_state(OFFSET_KEY, update["update_id"])
-            query = update.get("callback_query")
-            if not query:
-                continue
             try:
-                await self._handle(query)
-                handled += 1
+                if update.get("callback_query"):
+                    await self._handle(update["callback_query"])
+                    handled += 1
+                elif update.get("message"):
+                    await self._handle_message(update["message"])
+                    handled += 1
             except Exception as exc:  # noqa: BLE001
-                log.error("callback xatosi: %s", exc, exc_info=True)
+                log.error("update xatosi: %s", exc, exc_info=True)
 
         return handled
+
+    # -- matnli buyruqlar -----------------------------------------------------
+    async def _handle_message(self, message: dict) -> None:
+        chat_id = str((message.get("chat") or {}).get("id", ""))
+        if chat_id != str(self.settings.telegram_review_chat_id):
+            log.warning("Begona chatdan xabar: %s", chat_id)
+            return
+
+        text = (message.get("text") or "").strip()
+        low = text.lower()
+
+        if low in MAKE_POST_TEXTS:
+            await self._ask_rubric(chat_id)
+        elif low.startswith("/post "):
+            await self._make_post(chat_id, low.split(maxsplit=1)[1].strip())
+        elif low in STATUS_TEXTS:
+            await self._send_status(chat_id)
+        elif low in {"/rubrikalar", "rubrikalar"}:
+            await self._send_rubrics(chat_id)
+        elif low in {"/start", "/help", "start", "help"}:
+            await self.client.send_message(chat_id, HELP_TEXT, reply_markup=MENU_KEYBOARD)
+        else:
+            await self.client.send_message(
+                chat_id, "Tushunmadim. Pastdagi tugmalardan foydalaning yoki /help yozing.",
+                reply_markup=MENU_KEYBOARD,
+            )
+
+    async def _ask_rubric(self, chat_id: str) -> None:
+        from core.rubric import load_all_rubrics
+
+        rubrics = load_all_rubrics(only_enabled=True)
+        if not rubrics:
+            await self.client.send_message(chat_id, "Yoqilgan rubrika topilmadi.")
+            return
+
+        buttons = [{"text": r.name, "callback_data": f"make:{r.key}"} for r in rubrics]
+        rows = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+        await self.client.send_message(
+            chat_id, "Qaysi rubrika bo'yicha post tayyorlansin?",
+            reply_markup={"inline_keyboard": rows},
+        )
+
+    async def _send_status(self, chat_id: str) -> None:
+        rows = self.storage.history(limit=5)
+        if not rows:
+            await self.client.send_message(chat_id, "Hali post tayyorlanmagan.")
+            return
+        icons = {"published": "✅", "pending_approval": "⏳", "rejected": "❌",
+                 "failed": "⚠️", "needs_review": "👀"}
+        lines = [
+            f"{icons.get(r['status'], '•')} <b>{r['rubric']}</b> — "
+            f"{(r['topic'] or 'mavzusiz')[:60]}\n<i>{r['created_at'][:16].replace('T', ' ')}</i>"
+            for r in rows
+        ]
+        await self.client.send_message(chat_id, "<b>Oxirgi postlar</b>\n\n" + "\n\n".join(lines))
+
+    async def _send_rubrics(self, chat_id: str) -> None:
+        from core.rubric import load_all_rubrics
+
+        lines = [f"• <b>{r.name}</b> — <code>{r.cron or 'jadvalsiz'}</code>"
+                 for r in load_all_rubrics(only_enabled=True)]
+        await self.client.send_message(
+            chat_id,
+            "<b>Rubrikalar</b>\n\n" + "\n".join(lines) +
+            "\n\n<i>Vaqtlar Toshkent bo'yicha.</i>",
+        )
+
+    async def _make_post(self, chat_id: str, rubric_key: str) -> None:
+        from core.rubric import list_rubric_keys
+
+        if rubric_key not in list_rubric_keys():
+            await self.client.send_message(
+                chat_id,
+                f"'{rubric_key}' rubrikasi yo'q. Mavjudlari: {', '.join(list_rubric_keys())}",
+            )
+            return
+
+        await self.client.send_message(chat_id, f"⏳ <b>{rubric_key}</b> tayyorlanmoqda…")
+        try:
+            rubric = load_rubric(rubric_key)
+            ctx = await Pipeline(rubric, self.settings).run()
+        except Exception as exc:  # noqa: BLE001
+            log.error("[%s] post tayyorlanmadi: %s", rubric_key, exc, exc_info=True)
+            await self.client.send_message(chat_id, f"⚠️ Xato: {str(exc)[:400]}")
+            return
+
+        if ctx.status == PostStatus.PENDING_APPROVAL:
+            return          # tasdiq xabari allaqachon yuborildi
+        if ctx.status == PostStatus.PUBLISHED:
+            await self.client.send_message(chat_id, "✅ Post kanalga chiqdi.")
+        else:
+            problems = "\n".join(ctx.errors[:3]) or "sabab noma'lum"
+            await self.client.send_message(
+                chat_id, f"⚠️ Post chiqmadi (holat: {ctx.status.value})\n{problems[:400]}"
+            )
 
     async def run_forever(self, interval: int = 25) -> None:
         log.info("Tasdiq boti ishga tushdi. To'xtatish: Ctrl+C")
@@ -96,6 +236,14 @@ class ApprovalBot:
         action, run_id = data.split(":", 1)
         if action not in ACTIONS:
             await self.client.answer_callback(callback_id, "Noma'lum buyruq")
+            return
+
+        if action == "make":
+            # bu yerda run_id emas, rubrika kaliti keladi
+            await self.client.answer_callback(callback_id, "⏳ Tayyorlanmoqda…")
+            if chat_id and message_id:
+                await self.client.clear_buttons(chat_id, message_id)
+            await self._make_post(chat_id, run_id)
             return
 
         post = self.storage.get_post(run_id)

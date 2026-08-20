@@ -37,6 +37,11 @@ class FakeClient:
         self.sent: list[tuple[str, str]] = []
         self.answers: list[str] = []
         self.cleared: list[int] = []
+        self.markups: list[dict] = []
+        self.commands: list[dict] = []
+
+    async def set_my_commands(self, commands):
+        self.commands = commands
 
     async def get_updates(self, offset=None, timeout=0):
         self.last_offset = offset
@@ -50,6 +55,7 @@ class FakeClient:
 
     async def send_message(self, chat_id, text, **kwargs):
         self.sent.append((chat_id, text))
+        self.markups.append(kwargs.get("reply_markup") or {})
         return {"message_id": 777}
 
     async def send_photo(self, chat_id, photo, caption="", **kwargs):
@@ -90,8 +96,9 @@ async def test_approve_publishes_post(settings):
     handled = await bot.poll_once()
 
     assert handled == 1
-    assert client.sent, "post kanalga yuborilmadi"
-    assert client.sent[0][0] == "@testkanal"
+    sent = to_channel(client)
+    assert sent, "post kanalga yuborilmadi"
+    assert sent[0][0] == "@testkanal"
     assert bot.storage.get_post(ctx.run_id)["status"] == PostStatus.PUBLISHED.value
     assert 42 in client.cleared
 
@@ -119,7 +126,7 @@ async def test_stranger_cannot_publish(settings):
 
     await bot.poll_once()
 
-    assert not client.sent, "begona odam postni chiqarib yubordi!"
+    assert not to_channel(client), "begona odam postni chiqarib yubordi!"
     assert bot.storage.get_post(ctx.run_id)["status"] == PostStatus.PENDING_APPROVAL.value
     assert client.answers == ["Ruxsat yo'q"]
 

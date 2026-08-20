@@ -45,6 +45,9 @@ class TelegramClientBase(ABC):
     async def clear_buttons(self, chat_id: str, message_id: int) -> None:
         return None
 
+    async def set_my_commands(self, commands: list[dict[str, str]]) -> None:
+        return None
+
     async def send_for_review(
         self,
         chat_id: str,
@@ -141,8 +144,12 @@ class TelegramClient(TelegramClientBase):
             "getUpdates",
             offset=offset,
             timeout=timeout,
-            allowed_updates=["callback_query"],
+            allowed_updates=["callback_query", "message"],
         )
+
+    async def set_my_commands(self, commands: list[dict[str, str]]) -> None:
+        """Telegram'dagi buyruqlar menyusini ro'yxatdan o'tkazadi (bir marta yetadi)."""
+        await self._call("setMyCommands", commands=commands)
 
     async def answer_callback(self, callback_id: str, text: str = "") -> None:
         await self._call("answerCallbackQuery", callback_query_id=callback_id, text=text or None)
