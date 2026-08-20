@@ -114,6 +114,9 @@ class GeminiProvider(LLMProvider):
     name = "gemini"
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
+    #: Eng kam chiqish budjeti — "o'ylash" yoqilganda matnga joy qolishi uchun
+    MIN_OUTPUT_TOKENS = 512
+
     async def complete(
         self,
         prompt: str,
@@ -122,36 +125,81 @@ class GeminiProvider(LLMProvider):
         max_tokens: int = 1500,
         temperature: float = 0.7,
     ) -> str:
-        self.settings.require("gemini_api_key")
-        payload: dict = {
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "maxOutputTokens": max_tokens,
-                "temperature": temperature,
-            },
-        }
-        if system:
-            payload["systemInstruction"] = {"parts": [{"text": system}]}
+        """Gemini'dan matn oladi.
 
+        Yangi Gemini modellari javobdan oldin ichki "o'ylash" (thinking) bosqichini
+        bajaradi va u ham chiqish budjetidan yeyiladi. Budjet kichik bo'lsa model
+        bo'sh matn va finishReason=MAX_TOKENS qaytaradi. Shuning uchun:
+          1-urinish: o'ylash o'chirilgan (tez va arzon)
+          2-urinish: o'ylash yoqilgan, budjet 4 barobar katta
+        """
+        self.settings.require("gemini_api_key")
         url = f"{self.BASE_URL}/{self.settings.gemini_text_model}:generateContent"
-        data = await gemini_post(
-            url,
-            payload,
-            api_key=self.settings.gemini_api_key or "",
-            timeout=self.settings.request_timeout,
+        budget = max(max_tokens, self.MIN_OUTPUT_TOKENS)
+
+        attempts = [
+            {"thinking": 0, "tokens": budget},
+            {"thinking": None, "tokens": budget * 4},
+        ]
+        last_problem = ""
+
+        for i, attempt in enumerate(attempts):
+            payload: dict = {
+                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "maxOutputTokens": attempt["tokens"],
+                    "temperature": temperature,
+                },
+            }
+            if attempt["thinking"] is not None:
+                payload["generationConfig"]["thinkingConfig"] = {
+                    "thinkingBudget": attempt["thinking"]
+                }
+            if system:
+                payload["systemInstruction"] = {"parts": [{"text": system}]}
+
+            try:
+                data = await gemini_post(
+                    url,
+                    payload,
+                    api_key=self.settings.gemini_api_key or "",
+                    timeout=self.settings.request_timeout,
+                )
+            except RuntimeError as exc:
+                # Ba'zi modellar thinkingBudget=0 ni qabul qilmaydi — keyingi urinishga
+                if "think" in str(exc).lower() and i + 1 < len(attempts):
+                    last_problem = str(exc)[:200]
+                    log.info("Model o'ylashni o'chirishga ruxsat bermadi, qayta urinilmoqda")
+                    continue
+                raise
+
+            text, problem = self._extract(data)
+            if text:
+                return text
+
+            last_problem = problem
+            if "MAX_TOKENS" not in problem or i + 1 >= len(attempts):
+                break
+            log.info("Budjet yetmadi (%s) — kattaroq budjet bilan qayta urinilmoqda", problem)
+
+        raise RuntimeError(
+            f"Gemini matn qaytarmadi: {last_problem}. "
+            f"Agar bu takrorlansa, rubrika YAML'ida writer.max_tokens ni oshiring."
         )
 
+    @staticmethod
+    def _extract(data: dict) -> tuple[str, str]:
+        """(matn, muammo tavsifi) qaytaradi. Matn bo'sh bo'lsa sabab tushuntiriladi."""
         candidates = data.get("candidates") or []
         if not candidates:
             reason = (data.get("promptFeedback") or {}).get("blockReason", "noma'lum sabab")
-            raise RuntimeError(f"Gemini javob qaytarmadi ({reason})")
+            return "", f"javob bo'sh (blockReason={reason})"
 
         parts = candidates[0].get("content", {}).get("parts", [])
         text = "".join(p.get("text", "") for p in parts).strip()
-        if not text:
-            finish = candidates[0].get("finishReason", "?")
-            raise RuntimeError(f"Gemini bo'sh matn qaytardi (finishReason={finish})")
-        return text
+        if text:
+            return text, ""
+        return "", f"bo'sh matn (finishReason={candidates[0].get('finishReason', '?')})"
 
 
 class FakeLLMProvider(LLMProvider):

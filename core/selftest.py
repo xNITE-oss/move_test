@@ -32,8 +32,10 @@ async def check_llm(s: Settings) -> Check:
         return Check("LLM", False, f"provider yaratilmadi: {exc}")
 
     try:
+        # Budjet katta: yangi modellar javobdan oldin "o'ylaydi" va u ham
+        # chiqish budjetidan yeyiladi — kichik limit bo'sh javob beradi.
         out = await llm.complete(
-            "Faqat 'ishladi' deb javob ber.", max_tokens=20, temperature=0
+            "Faqat 'ishladi' deb javob ber.", max_tokens=512, temperature=0
         )
         return Check(f"LLM ({llm.name})", True, f"javob keldi: {out.strip()[:40]!r}")
     except Exception as exc:  # noqa: BLE001
