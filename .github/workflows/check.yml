@@ -1,0 +1,38 @@
+name: Move Space — tekshirish
+
+# Har bir xizmatga bitta kichik so'rov yuboradi va natijani Telegram'ga yozadi.
+# GitHub loglarini ochish shart emas — javob to'g'ridan-to'g'ri sizga keladi.
+#
+# Ishga tushirish: Actions → "Move Space — tekshirish" → Run workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Jonli tekshiruv
+        env:
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER || 'gemini' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_TEXT_MODEL: gemini-2.5-flash
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: claude-sonnet-4-5
+          SEARCH_PROVIDER: tavily
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_REVIEW_CHAT_ID: ${{ secrets.TELEGRAM_REVIEW_CHAT_ID }}
+          IMAGE_PROVIDER: none
+          TTS_PROVIDER: none
+        run: python cli.py doctor --live

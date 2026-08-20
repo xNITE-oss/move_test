@@ -37,7 +37,9 @@ jobs:
 
       - name: Tugma bosilishini tekshirish
         env:
-          LLM_PROVIDER: anthropic
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER || 'gemini' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_TEXT_MODEL: gemini-2.5-flash
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_MODEL: claude-sonnet-4-5
           SEARCH_PROVIDER: tavily
@@ -52,11 +54,12 @@ jobs:
 
       - name: Holatni saqlash
         if: always()
+        continue-on-error: true
         run: |
           git config user.name  "movespace-bot"
           git config user.email "actions@github.com"
           git add -f data/state.db 2>/dev/null || exit 0
           git diff --staged --quiet && exit 0
           git commit -m "state: approval [skip ci]"
-          git pull --rebase --autostash
-          git push
+          git pull --rebase --autostash origin "${{ github.ref_name }}" || true
+          git push origin "HEAD:${{ github.ref_name }}" || true
