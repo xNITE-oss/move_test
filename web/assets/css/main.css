@@ -20,6 +20,7 @@
   --glass-border-strong: rgba(255, 255, 255, 0.2);
   --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
 
+  --radius-lg: 32px;
   --radius: 22px;
   --radius-sm: 14px;
   --maxw: 1160px;
@@ -238,6 +239,54 @@ h1, h2, h3 { font-family: var(--font-head); line-height: 1.12; letter-spacing: -
   100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
 }
 @keyframes spin-slow { to { transform: rotate(360deg); } }
+
+/* ─── Bento layout ─────────────────────────────────────────────── */
+.bento-card {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Doira-strelka tugma (referens uslubi) */
+.circle-btn {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #04121a;
+  background: var(--accent-grad);
+  border: 0;
+  box-shadow: 0 10px 30px -10px rgba(34, 211, 238, 0.6);
+  transition: transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s;
+}
+.circle-btn:hover { transform: rotate(45deg) scale(1.06); box-shadow: 0 14px 38px -10px rgba(34, 211, 238, 0.8); }
+.circle-btn.ghost {
+  color: var(--text);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px);
+  box-shadow: none;
+}
+.circle-btn.ghost:hover { background: var(--glass-strong); transform: scale(1.06); }
+
+/* Progress halqa (statistika uchun) */
+.ring {
+  width: 66px; height: 66px; border-radius: 50%;
+  display: grid; place-items: center;
+  background:
+    radial-gradient(closest-side, var(--bg-2) 74%, transparent 75% 100%),
+    conic-gradient(var(--a2) var(--ring-p, 75%), rgba(255,255,255,0.1) 0);
+  flex: none;
+}
+.ring span { font-family: var(--font-head); font-weight: 800; font-size: 1.05rem; }
 
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 10px; }
