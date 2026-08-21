@@ -164,6 +164,61 @@ async def test_quality_rules_catch_banned_words(settings):
 
 
 # ── LLM ishlamay qolganda ────────────────────────────────────────────────────
+async def test_quality_high_score_fix_becomes_pass(settings):
+    """Ball chegaradan yuqori bo'lsa, LLM 'fix' desa ham post PASS bo'ladi."""
+    from unittest.mock import patch
+
+    from agents.quality_agent import QualityAgent
+
+    rubric = make_rubric()
+    rubric.raw["agents"]["quality"] = {
+        "enabled": True, "use_llm": True, "min_score": 7.5, "min_chars": 10,
+    }
+    ctx = PostContext(
+        rubric_key="test_rubrika",
+        post_text="Yetarlicha uzun va sifatli post matni bu yerda joylashgan.",
+    )
+
+    class Fake:
+        name = "fake"
+
+        async def complete(self, *a, **kw):
+            return '{"verdict": "fix", "score": 8.4, "issues": ["juda mayda uslub"], "suggestions": []}'
+
+    with patch("agents.quality_agent.get_llm_provider", return_value=Fake()):
+        ctx = await QualityAgent(settings, rubric).run(ctx)
+
+    assert ctx.quality.verdict == Verdict.PASS
+    assert ctx.quality.score == 8.4
+
+
+async def test_quality_low_score_pass_becomes_fix(settings):
+    """Ball chegaradan past bo'lsa, LLM 'pass' desa ham FIX bo'ladi."""
+    from unittest.mock import patch
+
+    from agents.quality_agent import QualityAgent
+
+    rubric = make_rubric()
+    rubric.raw["agents"]["quality"] = {
+        "enabled": True, "use_llm": True, "min_score": 7.5, "min_chars": 10,
+    }
+    ctx = PostContext(
+        rubric_key="test_rubrika",
+        post_text="Yetarlicha uzun va sifatli post matni bu yerda joylashgan.",
+    )
+
+    class Fake:
+        name = "fake"
+
+        async def complete(self, *a, **kw):
+            return '{"verdict": "pass", "score": 6.0, "issues": [], "suggestions": []}'
+
+    with patch("agents.quality_agent.get_llm_provider", return_value=Fake()):
+        ctx = await QualityAgent(settings, rubric).run(ctx)
+
+    assert ctx.quality.verdict == Verdict.FIX
+
+
 async def test_quality_survives_llm_outage(settings):
     """Limit tugasa yoki LLM javob bermasa, tayyor post yo'qolmasligi kerak."""
     from unittest.mock import patch

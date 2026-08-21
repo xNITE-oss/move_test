@@ -142,8 +142,15 @@ class QualityAgent(BaseAgent):
 
         score = float(data.get("score") or 0)
         min_score = float(self.opt("min_score", 7.0))
-        if verdict == Verdict.PASS and score and score < min_score:
-            verdict = Verdict.FIX
+        if score:
+            if verdict == Verdict.PASS and score < min_score:
+                # Ball past — qayta ishlansin
+                verdict = Verdict.FIX
+            elif verdict == Verdict.FIX and score >= min_score:
+                # Ball chegaradan yuqori: post yetarlicha yaxshi. LLM topgan
+                # mayda e'tirozlar bloklamaydi — post tasdiqqa yuboriladi
+                # (odam baribir ✅ bosishi kerak), e'tirozlar maslahat bo'lib qoladi.
+                verdict = Verdict.PASS
 
         return QualityReport(
             verdict=verdict,
