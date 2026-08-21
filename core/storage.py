@@ -79,8 +79,15 @@ class Storage:
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
-        conn = sqlite3.connect(self.db_path)
+        # timeout — bir necha jarayon (bot, scheduler, web API) bir vaqtda
+        # yozganda "database is locked" o'rniga qulf ochilishini kutadi.
+        conn = sqlite3.connect(self.db_path, timeout=15)
         conn.row_factory = sqlite3.Row
+        # WAL: o'qish yozishni bloklamaydi — sayt/adminka o'qiyotganda bot
+        # bemalol yozadi. Sozlama bazaga bir marta yoziladi, keyin saqlanadi.
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=15000")
+        conn.execute("PRAGMA synchronous=NORMAL")
         try:
             yield conn
             conn.commit()
@@ -215,6 +222,20 @@ class Storage:
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (key, str(value)),
             )
+
+    def published_posts(
+        self, rubric_key: str | None = None, limit: int = 30, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """Ochiq sayt uchun: faqat chiqarilgan postlar, yangi birinchi."""
+        query = "SELECT * FROM posts WHERE status='published'"
+        params: tuple = ()
+        if rubric_key:
+            query += " AND rubric=?"
+            params = (rubric_key,)
+        query += " ORDER BY COALESCE(published_at, created_at) DESC LIMIT ? OFFSET ?"
+        params += (limit, offset)
+        with self._conn() as conn:
+            return [dict(r) for r in conn.execute(query, params).fetchall()]
 
     def history(self, rubric_key: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
         query = "SELECT * FROM posts"

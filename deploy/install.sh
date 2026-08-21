@@ -80,6 +80,8 @@ if [ ! -f "$ENV_FILE" ]; then
     read -rp "$prompt: " value </dev/tty
     [ -n "$value" ] && printf '%s=%s\n' "$var" "$value" >> "$ENV_FILE"
   }
+  # Adminka token imzosi uchun maxfiy kalit — avtomatik yaratiladi
+  jwt_secret="$(openssl rand -base64 48 2>/dev/null | tr -d '\n' || head -c 48 /dev/urandom | base64 | tr -d '\n')"
   {
     echo "# Move Space — server sozlamalari"
     echo "LLM_PROVIDER=gemini"
@@ -90,12 +92,16 @@ if [ ! -f "$ENV_FILE" ]; then
     echo "TTS_PROVIDER=none"
     echo "TIMEZONE=Asia/Tashkent"
     echo "LOG_LEVEL=INFO"
+    echo "# --- Adminka (web) ---"
+    echo "ADMIN_USERNAME=admin"
+    echo "JWT_SECRET=$jwt_secret"
   } > "$ENV_FILE"
   ask GEMINI_API_KEY          "Gemini kaliti (AQ....)"
   ask TAVILY_API_KEY          "Tavily kaliti (tvly-...)"
   ask TELEGRAM_BOT_TOKEN      "Telegram bot tokeni"
   ask TELEGRAM_CHANNEL_ID     "Kanal ID (masalan -1004330535265)"
   ask TELEGRAM_REVIEW_CHAT_ID "Sizning Telegram ID'ingiz"
+  ask ADMIN_PASSWORD          "Adminka paroli (o'zingiz o'ylab toping)"
 else
   say "Mavjud .env topildi — tegilmadi"
 fi
@@ -106,13 +112,15 @@ chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
 say "Systemd xizmatlari o'rnatilmoqda"
 install -m 644 "$APP_DIR/deploy/movespace-bot.service"       /etc/systemd/system/
 install -m 644 "$APP_DIR/deploy/movespace-scheduler.service" /etc/systemd/system/
+install -m 644 "$APP_DIR/deploy/movespace-web.service"       /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now movespace-bot.service movespace-scheduler.service
+systemctl enable --now movespace-bot.service movespace-scheduler.service movespace-web.service
 
 sleep 2
 say "Holat"
 systemctl is-active --quiet movespace-bot       && echo "  ✅ bot ishlayapti"       || echo "  ❌ bot ishlamadi"
 systemctl is-active --quiet movespace-scheduler && echo "  ✅ scheduler ishlayapti" || echo "  ❌ scheduler ishlamadi"
+systemctl is-active --quiet movespace-web       && echo "  ✅ web API ishlayapti"   || echo "  ❌ web API ishlamadi"
 
 cat <<'EOF'
 

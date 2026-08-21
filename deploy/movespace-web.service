@@ -1,0 +1,27 @@
+[Unit]
+Description=Move Space — Web API (adminka + sayt)
+Documentation=https://github.com/xNITE-oss/move_test
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=movespace
+Group=movespace
+WorkingDirectory=/opt/movespace/app
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Tashkent
+# Faqat lokalda tinglaydi — tashqariga Caddy/Nginx orqali chiqadi (TLS + domen)
+ExecStart=/opt/movespace/venv/bin/uvicorn api.app:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+# Xavfsizlik: xizmat faqat o'z papkasiga yoza oladi
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/movespace/app/data
+
+[Install]
+WantedBy=multi-user.target

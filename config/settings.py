@@ -101,6 +101,16 @@ class Settings:
     approve_workflow_url: str | None = None
     approve_delay_note: str = "5 daq."
 
+    # --- Web API / Adminka (1-bosqich) --------------------------------------
+    # Bitta admin: login/parol .env'da, token JWT bilan imzolanadi.
+    admin_username: str = "admin"
+    admin_password: str | None = None
+    jwt_secret: str | None = None
+    token_ttl_hours: int = 72
+    # Brauzerdan (adminka/sayt) so'rov keladigan manzillar. Bo'sh — hammasi
+    # rad etiladi (faqat bir xil domendan ishlatilsa CORS kerak emas).
+    cors_origins: tuple[str, ...] = ()
+
     # --- Umumiy -------------------------------------------------------------
     dry_run: bool = False
     timezone: str = "Asia/Tashkent"
@@ -146,6 +156,13 @@ class Settings:
             telegram_review_chat_id=_get("TELEGRAM_REVIEW_CHAT_ID"),
             approve_workflow_url=_approve_url(),
             approve_delay_note=_get("APPROVE_DELAY_NOTE") or "5 daq.",
+            admin_username=_get("ADMIN_USERNAME") or "admin",
+            admin_password=_get("ADMIN_PASSWORD"),
+            jwt_secret=_get("JWT_SECRET"),
+            token_ttl_hours=_get_int("TOKEN_TTL_HOURS", 72),
+            cors_origins=tuple(
+                o.strip() for o in (_get("CORS_ORIGINS") or "").split(",") if o.strip()
+            ),
             dry_run=_get_bool("DRY_RUN", False),
             timezone=_get("TIMEZONE") or "Asia/Tashkent",
             log_level=(_get("LOG_LEVEL") or "INFO").upper(),

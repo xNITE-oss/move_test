@@ -43,7 +43,14 @@ fi
 chown -R movespace:movespace /opt/movespace
 
 echo "==> Xizmatlar qayta ishga tushirilmoqda"
-systemctl restart movespace-bot movespace-scheduler
+# web xizmati hali o'rnatilmagan bo'lishi mumkin — bo'lsa qayta ishga tushiramiz
+services="movespace-bot movespace-scheduler"
+systemctl list-unit-files movespace-web.service >/dev/null 2>&1 \
+  && [ -f /etc/systemd/system/movespace-web.service ] && services="$services movespace-web"
+systemctl restart $services
 sleep 2
 systemctl is-active --quiet movespace-bot       && echo "  ✅ bot"       || echo "  ❌ bot"
 systemctl is-active --quiet movespace-scheduler && echo "  ✅ scheduler" || echo "  ❌ scheduler"
+if [ -f /etc/systemd/system/movespace-web.service ]; then
+  systemctl is-active --quiet movespace-web     && echo "  ✅ web"       || echo "  ❌ web"
+fi

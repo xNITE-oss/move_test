@@ -40,16 +40,36 @@ class ContentService:
 
     # -- postlar --------------------------------------------------------------
     async def create_post(
-        self, rubric_key: str, *, topic: str | None = None, dry_run: bool | None = None
+        self,
+        rubric_key: str,
+        *,
+        topic: str | None = None,
+        dry_run: bool | None = None,
+        publisher_mode: str | None = None,
     ) -> PostContext:
-        """To'liq pipeline: material izlash → yozish → tekshirish → chiqarish."""
+        """To'liq pipeline: material izlash → yozish → tekshirish → chiqarish.
+
+        `publisher_mode` berilsa (masalan "off"), rubrikadagi publisher rejimi
+        shu chaqiruv uchun almashtiriladi — adminka postni Telegram'ga tasdiq
+        xabari yubormasdan tayyorlab, panelning o'zida ko'rib chiqishi uchun.
+        """
         rubric = load_rubric(rubric_key)
+        if publisher_mode:
+            rubric.raw.setdefault("agents", {}).setdefault("publisher", {})[
+                "mode"
+            ] = publisher_mode
         return await Pipeline(rubric, self.settings, self.storage).run(
             topic=topic, dry_run=dry_run
         )
 
     def list_posts(self, rubric_key: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
         return self.storage.history(rubric_key, limit=limit)
+
+    def list_published(
+        self, rubric_key: str | None = None, limit: int = 30, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """Ochiq sayt uchun: chiqarilgan postlar ro'yxati."""
+        return self.storage.published_posts(rubric_key, limit=limit, offset=offset)
 
     def get_post(self, run_id: str) -> dict[str, Any] | None:
         return self.storage.get_post(run_id)
@@ -75,6 +95,7 @@ class ContentService:
             rubric_key=post.get("rubric") or "noma'lum",
             run_id=post["run_id"],
         )
+        ctx.dry_run = self.settings.dry_run     # DRY_RUN=true bo'lsa hech narsa yuborilmaydi
         ctx.post_text = post.get("post_text") or ""
         ctx.image_path = post.get("image_path")
         ctx.audio_path = post.get("audio_path")
