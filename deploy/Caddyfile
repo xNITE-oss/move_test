@@ -1,15 +1,27 @@
 # Move Space — movespace.uz (Caddy reverse proxy + avtomatik HTTPS)
 #
-# 1-bosqich: hammasi backend API'ga (uvicorn 127.0.0.1:8000) yo'naltiriladi.
-# Sayt va admin panel oynalari (Nuxt) tayyor bo'lganda shu blok bo'linadi:
-#
-#   movespace.uz {
-#       handle /api/*  { reverse_proxy 127.0.0.1:8000 }
-#       handle /admin* { root * /var/www/admin; try_files {path} /index.html; file_server }
-#       handle         { root * /var/www/site;  try_files {path} /index.html; file_server }
-#   }
+# /api, /docs        -> backend API (uvicorn 127.0.0.1:8000)
+# qolgan hamma yo'l  -> statik sayt (Nuxt SPA, /var/www/movespace)
 
 movespace.uz, www.movespace.uz {
 	encode gzip
-	reverse_proxy 127.0.0.1:8000
+
+	# Backend API (adminka + sayt ma'lumotlari)
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	# API hujjatlari (Swagger)
+	handle /docs* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle /openapi.json {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# Sayt — statik SPA. Noma'lum yo'llar index.html'ga (client routing)
+	handle {
+		root * /var/www/movespace
+		try_files {path} /index.html
+		file_server
+	}
 }
